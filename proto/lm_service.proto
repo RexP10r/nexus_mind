@@ -1,0 +1,86 @@
+syntax = "proto3";
+
+package lm_service;
+
+// =============================================================================
+// 1. Core Enums & Types
+// =============================================================================
+
+enum RetrievalStrategy {
+  STRATEGY_UNSPECIFIED = 0;
+  VECTOR_RAG = 1;
+  INFINI_RETRI = 2;
+}
+
+enum MessageRole {
+  ROLE_UNSPECIFIED = 0;
+  ROLE_SYSTEM = 1;
+  ROLE_USER = 2;
+  ROLE_ASSISTANT = 3;
+}
+
+enum InferenceStatus {
+  STATUS_UNSPECIFIED = 0;
+  STATUS_SUCCESS = 1;
+  STATUS_ERROR = 2;
+  STATUS_TIMEOUT = 3;
+  STRATEGY_NOT_SUPPORTED = 4;
+}
+
+// =============================================================================
+// 2. Message Structures
+// =============================================================================
+
+message ChatMessage {
+  MessageRole role = 1;
+  string content = 2;
+}
+
+message GenerateRequest {
+  repeated ChatMessage messages = 1;
+  
+  float temperature = 2;
+  int32 max_tokens = 3;
+  float top_p = 4;
+  float top_k = 5;
+}
+
+message GenerateResponse {
+  string text = 1;
+  InferenceStatus status = 2;
+  string error_message = 3;
+  
+  int32 tokens_processed = 4;
+  int32 tokens_generated = 5;
+  float duration_ms = 6;
+}
+
+message EmbeddingRequest {
+  string text = 1;
+}
+
+message EmbeddingResponse {
+  repeated float vector = 1;
+  InferenceStatus status = 2;
+  string error_message = 3;
+}
+
+message HealthCheckRequest {}
+
+message HealthCheckResponse {
+  bool is_ready = 1;
+  string model_name = 2;
+  int32 context_length = 3;
+}
+
+// =============================================================================
+// 3. Service Definition
+// =============================================================================
+
+service LMService {
+  rpc Generate (GenerateRequest) returns (GenerateResponse);
+  
+  rpc GetEmbedding (EmbeddingRequest) returns (EmbeddingResponse);
+  
+  rpc HealthCheck (HealthCheckRequest) returns (HealthCheckResponse);
+}

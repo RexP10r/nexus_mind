@@ -20,7 +20,6 @@ pub struct ChatRequest {
 pub struct ChatResponse {
     pub conversation_id: String,
     pub message: Message,
-    pub reasoning_steps: Vec<crate::agent::ReasoningStep>,
     pub model_text: String,
 }
 
@@ -65,7 +64,6 @@ pub async fn chat(
                     role: "assistant".into(),
                     content: agent_result.final_answer.clone(),
                 },
-                reasoning_steps: agent_result.reasoning_steps,
                 model_text: agent_result.final_answer,
             };
 

@@ -7,8 +7,6 @@ mod server;
 mod traits;
 
 use crate::agent::react::ReactAgent;
-use crate::agent::tools::calculator::CalculatorTool;
-use crate::agent::tools::registry::ToolRegistry;
 use crate::config::Config;
 use crate::error::WorkerError;
 use crate::provider::grpc::GrpcLlmProvider;
@@ -43,13 +41,7 @@ async fn init_agent(config: &Config) -> Result<Arc<dyn Agent>, WorkerError> {
     let llm: Arc<dyn LlmProvider> = Arc::new(llm);
     verify_provider(&llm).await?;
 
-    let tool_registry = ToolRegistry::from_tools(vec![Box::new(CalculatorTool)]);
-
-    Ok(Arc::new(ReactAgent::new(
-        Arc::clone(&llm),
-        tool_registry,
-        config.max_iterations,
-    )))
+    Ok(Arc::new(ReactAgent::new(Arc::clone(&llm))))
 }
 #[tokio::main]
 async fn main() -> anyhow::Result<(), WorkerError> {

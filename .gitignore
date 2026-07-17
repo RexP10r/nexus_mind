@@ -1,5 +1,4 @@
 target/
 __pycache__/
 .venv/
-AGENTS.md
 rlm/

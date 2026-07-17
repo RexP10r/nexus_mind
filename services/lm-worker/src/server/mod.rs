@@ -3,12 +3,10 @@ pub mod routes;
 use std::sync::Arc;
 
 use crate::traits::agent::Agent;
-use crate::traits::GenerationParams;
 
 #[derive(Clone)]
 pub struct AppState {
     pub agent: Arc<dyn Agent>,
-    pub default_params: GenerationParams,
 }
 
 pub fn build_router(state: AppState) -> axum::Router {

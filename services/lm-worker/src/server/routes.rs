@@ -36,7 +36,7 @@ pub struct HealthResponse {
 }
 
 impl ChatRequest {
-    fn to_generation_params(&self, defaults: &GenerationParams) -> GenerationParams {
+    fn to_generation_params(&self, defaults: GenerationParams) -> GenerationParams {
         GenerationParams {
             temperature: self.temperature.unwrap_or(defaults.temperature),
             max_tokens: self.max_tokens.unwrap_or(defaults.max_tokens),
@@ -50,7 +50,8 @@ pub async fn chat(
     State(state): State<AppState>,
     Json(req): Json<ChatRequest>,
 ) -> Json<serde_json::Value> {
-    let params = req.to_generation_params(&state.default_params);
+    let default_params = GenerationParams::default();
+    let params = req.to_generation_params(default_params);
 
     match state.agent.run(&req.messages, &params).await {
         Ok(agent_result) => {

@@ -13,7 +13,6 @@ use crate::config::Config;
 use crate::error::WorkerError;
 use crate::provider::grpc::GrpcLlmProvider;
 use crate::server::AppState;
-use crate::traits::GenerationParams;
 use crate::traits::agent::Agent;
 use crate::traits::llm::LlmProvider;
 use std::net::SocketAddr;
@@ -46,7 +45,11 @@ async fn init_agent(config: &Config) -> Result<Arc<dyn Agent>, WorkerError> {
 
     let tool_registry = ToolRegistry::from_tools(vec![Box::new(CalculatorTool)]);
 
-    Ok(Arc::new(ReactAgent::new(Arc::clone(&llm), tool_registry, config.max_iterations)))
+    Ok(Arc::new(ReactAgent::new(
+        Arc::clone(&llm),
+        tool_registry,
+        config.max_iterations,
+    )))
 }
 #[tokio::main]
 async fn main() -> anyhow::Result<(), WorkerError> {
@@ -58,10 +61,7 @@ async fn main() -> anyhow::Result<(), WorkerError> {
         Err(e) => return Err(e),
     };
 
-    let state = AppState {
-        agent,
-        default_params: GenerationParams::default()
-    };
+    let state = AppState { agent };
 
     let router = server::build_router(state);
     let addr = SocketAddr::from(([0, 0, 0, 0], config.http_port));

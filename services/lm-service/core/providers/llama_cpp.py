@@ -47,6 +47,7 @@ class LlamaCppProvider(LMProvider):
             "low_vram": self._low_vram,
             "use_mmap": self._use_mmap,
             "use_mlock": self._use_mlock,
+            "chat_format": "chatml"
         }
 
         verbose_level = 1 if "gguf" in self._model_name.lower() else False
@@ -73,13 +74,20 @@ class LlamaCppProvider(LMProvider):
         llm_messages = [{"role": m.role, "content": m.content}
                         for m in messages]
 
+        print("\n--- DEBUG: Messages from Rust ---")
+        for m in messages:
+            print(f"[{m.role}]: {m.content}")
+        print("---------------------------------\n")
+
         start_time = time.perf_counter()
         try:
             response = self._model.create_chat_completion(
                 messages=llm_messages,
                 max_tokens=max_tokens,
                 temperature=temperature,
-                top_p=top_p if top_p is not None else 0.9,
+                top_k=top_k,
+                top_p=top_p,
+                response_format={"type": "json_object"},
             )
         except Exception as e:
             raise GenerationError(f"Model generation failed: {e}") from e
@@ -88,6 +96,7 @@ class LlamaCppProvider(LMProvider):
 
         response_text = response["choices"][0]["message"]["content"]
         usage = response.get("usage", {})
+        print(f"Generated test: {response_text}")
 
         return GenerateResult(
             text=response_text,

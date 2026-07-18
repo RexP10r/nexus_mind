@@ -11,7 +11,8 @@ _version_not_supported = False
 
 try:
     from grpc._utilities import first_version_is_lower
-    _version_not_supported = first_version_is_lower(GRPC_VERSION, GRPC_GENERATED_VERSION)
+    _version_not_supported = first_version_is_lower(
+        GRPC_VERSION, GRPC_GENERATED_VERSION)
 except ImportError:
     _version_not_supported = True
 
@@ -39,20 +40,20 @@ class LMServiceStub:
             channel: A grpc.Channel.
         """
         self.Generate = channel.unary_unary(
-                '/lm_service.LMService/Generate',
-                request_serializer=lm__service__pb2.GenerateRequest.SerializeToString,
-                response_deserializer=lm__service__pb2.GenerateResponse.FromString,
-                _registered_method=True)
+            '/lm_service.LMService/Generate',
+            request_serializer=lm__service__pb2.GenerateRequest.SerializeToString,
+            response_deserializer=lm__service__pb2.GenerateResponse.FromString,
+            _registered_method=True)
         self.GetEmbedding = channel.unary_unary(
-                '/lm_service.LMService/GetEmbedding',
-                request_serializer=lm__service__pb2.EmbeddingRequest.SerializeToString,
-                response_deserializer=lm__service__pb2.EmbeddingResponse.FromString,
-                _registered_method=True)
+            '/lm_service.LMService/GetEmbedding',
+            request_serializer=lm__service__pb2.EmbeddingRequest.SerializeToString,
+            response_deserializer=lm__service__pb2.EmbeddingResponse.FromString,
+            _registered_method=True)
         self.HealthCheck = channel.unary_unary(
-                '/lm_service.LMService/HealthCheck',
-                request_serializer=lm__service__pb2.HealthCheckRequest.SerializeToString,
-                response_deserializer=lm__service__pb2.HealthCheckResponse.FromString,
-                _registered_method=True)
+            '/lm_service.LMService/HealthCheck',
+            request_serializer=lm__service__pb2.HealthCheckRequest.SerializeToString,
+            response_deserializer=lm__service__pb2.HealthCheckResponse.FromString,
+            _registered_method=True)
 
 
 class LMServiceServicer:
@@ -83,29 +84,31 @@ class LMServiceServicer:
 
 def add_LMServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
-            'Generate': grpc.unary_unary_rpc_method_handler(
-                    servicer.Generate,
-                    request_deserializer=lm__service__pb2.GenerateRequest.FromString,
-                    response_serializer=lm__service__pb2.GenerateResponse.SerializeToString,
-            ),
-            'GetEmbedding': grpc.unary_unary_rpc_method_handler(
-                    servicer.GetEmbedding,
-                    request_deserializer=lm__service__pb2.EmbeddingRequest.FromString,
-                    response_serializer=lm__service__pb2.EmbeddingResponse.SerializeToString,
-            ),
-            'HealthCheck': grpc.unary_unary_rpc_method_handler(
-                    servicer.HealthCheck,
-                    request_deserializer=lm__service__pb2.HealthCheckRequest.FromString,
-                    response_serializer=lm__service__pb2.HealthCheckResponse.SerializeToString,
-            ),
+        'Generate': grpc.unary_unary_rpc_method_handler(
+            servicer.Generate,
+            request_deserializer=lm__service__pb2.GenerateRequest.FromString,
+            response_serializer=lm__service__pb2.GenerateResponse.SerializeToString,
+        ),
+        'GetEmbedding': grpc.unary_unary_rpc_method_handler(
+            servicer.GetEmbedding,
+            request_deserializer=lm__service__pb2.EmbeddingRequest.FromString,
+            response_serializer=lm__service__pb2.EmbeddingResponse.SerializeToString,
+        ),
+        'HealthCheck': grpc.unary_unary_rpc_method_handler(
+            servicer.HealthCheck,
+            request_deserializer=lm__service__pb2.HealthCheckRequest.FromString,
+            response_serializer=lm__service__pb2.HealthCheckResponse.SerializeToString,
+        ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
-            'lm_service.LMService', rpc_method_handlers)
+        'lm_service.LMService', rpc_method_handlers)
     server.add_generic_rpc_handlers((generic_handler,))
-    server.add_registered_method_handlers('lm_service.LMService', rpc_method_handlers)
-
+    server.add_registered_method_handlers(
+        'lm_service.LMService', rpc_method_handlers)
 
  # This class is part of an EXPERIMENTAL API.
+
+
 class LMService:
     """=============================================================================
     3. Service Definition
@@ -115,15 +118,15 @@ class LMService:
 
     @staticmethod
     def Generate(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
+                 target,
+                 options=(),
+                 channel_credentials=None,
+                 call_credentials=None,
+                 insecure=False,
+                 compression=None,
+                 wait_for_ready=None,
+                 timeout=None,
+                 metadata=None):
         return grpc.experimental.unary_unary(
             request,
             target,
@@ -142,15 +145,15 @@ class LMService:
 
     @staticmethod
     def GetEmbedding(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
+                     target,
+                     options=(),
+                     channel_credentials=None,
+                     call_credentials=None,
+                     insecure=False,
+                     compression=None,
+                     wait_for_ready=None,
+                     timeout=None,
+                     metadata=None):
         return grpc.experimental.unary_unary(
             request,
             target,
@@ -169,15 +172,15 @@ class LMService:
 
     @staticmethod
     def HealthCheck(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
+                    target,
+                    options=(),
+                    channel_credentials=None,
+                    call_credentials=None,
+                    insecure=False,
+                    compression=None,
+                    wait_for_ready=None,
+                    timeout=None,
+                    metadata=None):
         return grpc.experimental.unary_unary(
             request,
             target,

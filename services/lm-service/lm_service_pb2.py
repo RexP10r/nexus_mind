@@ -22,35 +22,33 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 _sym_db = _symbol_database.Default()
 
 
-
-
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x10lm_service.proto\x12\nlm_service\"E\n\x0b\x43hatMessage\x12%\n\x04role\x18\x01 \x01(\x0e\x32\x17.lm_service.MessageRole\x12\x0f\n\x07\x63ontent\x18\x02 \x01(\t\"\x83\x01\n\x0fGenerateRequest\x12)\n\x08messages\x18\x01 \x03(\x0b\x32\x17.lm_service.ChatMessage\x12\x13\n\x0btemperature\x18\x02 \x01(\x02\x12\x12\n\nmax_tokens\x18\x03 \x01(\x05\x12\r\n\x05top_p\x18\x04 \x01(\x02\x12\r\n\x05top_k\x18\x05 \x01(\x02\"\xad\x01\n\x10GenerateResponse\x12\x0c\n\x04text\x18\x01 \x01(\t\x12+\n\x06status\x18\x02 \x01(\x0e\x32\x1b.lm_service.InferenceStatus\x12\x15\n\rerror_message\x18\x03 \x01(\t\x12\x18\n\x10tokens_processed\x18\x04 \x01(\x05\x12\x18\n\x10tokens_generated\x18\x05 \x01(\x05\x12\x13\n\x0b\x64uration_ms\x18\x06 \x01(\x02\" \n\x10\x45mbeddingRequest\x12\x0c\n\x04text\x18\x01 \x01(\t\"g\n\x11\x45mbeddingResponse\x12\x0e\n\x06vector\x18\x01 \x03(\x02\x12+\n\x06status\x18\x02 \x01(\x0e\x32\x1b.lm_service.InferenceStatus\x12\x15\n\rerror_message\x18\x03 \x01(\t\"\x14\n\x12HealthCheckRequest\"S\n\x13HealthCheckResponse\x12\x10\n\x08is_ready\x18\x01 \x01(\x08\x12\x12\n\nmodel_name\x18\x02 \x01(\t\x12\x16\n\x0e\x63ontext_length\x18\x03 \x01(\x05*O\n\x11RetrievalStrategy\x12\x18\n\x14STRATEGY_UNSPECIFIED\x10\x00\x12\x0e\n\nVECTOR_RAG\x10\x01\x12\x10\n\x0cINFINI_RETRI\x10\x02*W\n\x0bMessageRole\x12\x14\n\x10ROLE_UNSPECIFIED\x10\x00\x12\x0f\n\x0bROLE_SYSTEM\x10\x01\x12\r\n\tROLE_USER\x10\x02\x12\x12\n\x0eROLE_ASSISTANT\x10\x03*\x7f\n\x0fInferenceStatus\x12\x16\n\x12STATUS_UNSPECIFIED\x10\x00\x12\x12\n\x0eSTATUS_SUCCESS\x10\x01\x12\x10\n\x0cSTATUS_ERROR\x10\x02\x12\x12\n\x0eSTATUS_TIMEOUT\x10\x03\x12\x1a\n\x16STRATEGY_NOT_SUPPORTED\x10\x04\x32\xef\x01\n\tLMService\x12\x45\n\x08Generate\x12\x1b.lm_service.GenerateRequest\x1a\x1c.lm_service.GenerateResponse\x12K\n\x0cGetEmbedding\x12\x1c.lm_service.EmbeddingRequest\x1a\x1d.lm_service.EmbeddingResponse\x12N\n\x0bHealthCheck\x12\x1e.lm_service.HealthCheckRequest\x1a\x1f.lm_service.HealthCheckResponseb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x10lm_service.proto\x12\nlm_service\"E\n\x0b\x43hatMessage\x12%\n\x04role\x18\x01 \x01(\x0e\x32\x17.lm_service.MessageRole\x12\x0f\n\x07\x63ontent\x18\x02 \x01(\t\"\x83\x01\n\x0fGenerateRequest\x12)\n\x08messages\x18\x01 \x03(\x0b\x32\x17.lm_service.ChatMessage\x12\x13\n\x0btemperature\x18\x02 \x01(\x02\x12\x12\n\nmax_tokens\x18\x03 \x01(\r\x12\r\n\x05top_p\x18\x04 \x01(\x02\x12\r\n\x05top_k\x18\x05 \x01(\r\"\xad\x01\n\x10GenerateResponse\x12\x0c\n\x04text\x18\x01 \x01(\t\x12+\n\x06status\x18\x02 \x01(\x0e\x32\x1b.lm_service.InferenceStatus\x12\x15\n\rerror_message\x18\x03 \x01(\t\x12\x18\n\x10tokens_processed\x18\x04 \x01(\r\x12\x18\n\x10tokens_generated\x18\x05 \x01(\r\x12\x13\n\x0b\x64uration_ms\x18\x06 \x01(\x02\" \n\x10\x45mbeddingRequest\x12\x0c\n\x04text\x18\x01 \x01(\t\"g\n\x11\x45mbeddingResponse\x12\x0e\n\x06vector\x18\x01 \x03(\x02\x12+\n\x06status\x18\x02 \x01(\x0e\x32\x1b.lm_service.InferenceStatus\x12\x15\n\rerror_message\x18\x03 \x01(\t\"\x14\n\x12HealthCheckRequest\"S\n\x13HealthCheckResponse\x12\x10\n\x08is_ready\x18\x01 \x01(\x08\x12\x12\n\nmodel_name\x18\x02 \x01(\t\x12\x16\n\x0e\x63ontext_length\x18\x03 \x01(\r*O\n\x11RetrievalStrategy\x12\x18\n\x14STRATEGY_UNSPECIFIED\x10\x00\x12\x0e\n\nVECTOR_RAG\x10\x01\x12\x10\n\x0cINFINI_RETRI\x10\x02*W\n\x0bMessageRole\x12\x14\n\x10ROLE_UNSPECIFIED\x10\x00\x12\x0f\n\x0bROLE_SYSTEM\x10\x01\x12\r\n\tROLE_USER\x10\x02\x12\x12\n\x0eROLE_ASSISTANT\x10\x03*\x7f\n\x0fInferenceStatus\x12\x16\n\x12STATUS_UNSPECIFIED\x10\x00\x12\x12\n\x0eSTATUS_SUCCESS\x10\x01\x12\x10\n\x0cSTATUS_ERROR\x10\x02\x12\x12\n\x0eSTATUS_TIMEOUT\x10\x03\x12\x1a\n\x16STRATEGY_NOT_SUPPORTED\x10\x04\x32\xef\x01\n\tLMService\x12\x45\n\x08Generate\x12\x1b.lm_service.GenerateRequest\x1a\x1c.lm_service.GenerateResponse\x12K\n\x0cGetEmbedding\x12\x1c.lm_service.EmbeddingRequest\x1a\x1d.lm_service.EmbeddingResponse\x12N\n\x0bHealthCheck\x12\x1e.lm_service.HealthCheckRequest\x1a\x1f.lm_service.HealthCheckResponseb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'lm_service_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
-  DESCRIPTOR._loaded_options = None
-  _globals['_RETRIEVALSTRATEGY']._serialized_start=659
-  _globals['_RETRIEVALSTRATEGY']._serialized_end=738
-  _globals['_MESSAGEROLE']._serialized_start=740
-  _globals['_MESSAGEROLE']._serialized_end=827
-  _globals['_INFERENCESTATUS']._serialized_start=829
-  _globals['_INFERENCESTATUS']._serialized_end=956
-  _globals['_CHATMESSAGE']._serialized_start=32
-  _globals['_CHATMESSAGE']._serialized_end=101
-  _globals['_GENERATEREQUEST']._serialized_start=104
-  _globals['_GENERATEREQUEST']._serialized_end=235
-  _globals['_GENERATERESPONSE']._serialized_start=238
-  _globals['_GENERATERESPONSE']._serialized_end=411
-  _globals['_EMBEDDINGREQUEST']._serialized_start=413
-  _globals['_EMBEDDINGREQUEST']._serialized_end=445
-  _globals['_EMBEDDINGRESPONSE']._serialized_start=447
-  _globals['_EMBEDDINGRESPONSE']._serialized_end=550
-  _globals['_HEALTHCHECKREQUEST']._serialized_start=552
-  _globals['_HEALTHCHECKREQUEST']._serialized_end=572
-  _globals['_HEALTHCHECKRESPONSE']._serialized_start=574
-  _globals['_HEALTHCHECKRESPONSE']._serialized_end=657
-  _globals['_LMSERVICE']._serialized_start=959
-  _globals['_LMSERVICE']._serialized_end=1198
+    DESCRIPTOR._loaded_options = None
+    _globals['_RETRIEVALSTRATEGY']._serialized_start = 659
+    _globals['_RETRIEVALSTRATEGY']._serialized_end = 738
+    _globals['_MESSAGEROLE']._serialized_start = 740
+    _globals['_MESSAGEROLE']._serialized_end = 827
+    _globals['_INFERENCESTATUS']._serialized_start = 829
+    _globals['_INFERENCESTATUS']._serialized_end = 956
+    _globals['_CHATMESSAGE']._serialized_start = 32
+    _globals['_CHATMESSAGE']._serialized_end = 101
+    _globals['_GENERATEREQUEST']._serialized_start = 104
+    _globals['_GENERATEREQUEST']._serialized_end = 235
+    _globals['_GENERATERESPONSE']._serialized_start = 238
+    _globals['_GENERATERESPONSE']._serialized_end = 411
+    _globals['_EMBEDDINGREQUEST']._serialized_start = 413
+    _globals['_EMBEDDINGREQUEST']._serialized_end = 445
+    _globals['_EMBEDDINGRESPONSE']._serialized_start = 447
+    _globals['_EMBEDDINGRESPONSE']._serialized_end = 550
+    _globals['_HEALTHCHECKREQUEST']._serialized_start = 552
+    _globals['_HEALTHCHECKREQUEST']._serialized_end = 572
+    _globals['_HEALTHCHECKRESPONSE']._serialized_start = 574
+    _globals['_HEALTHCHECKRESPONSE']._serialized_end = 657
+    _globals['_LMSERVICE']._serialized_start = 959
+    _globals['_LMSERVICE']._serialized_end = 1198
 # @@protoc_insertion_point(module_scope)

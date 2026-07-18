@@ -40,9 +40,9 @@ message GenerateRequest {
   repeated ChatMessage messages = 1;
   
   float temperature = 2;
-  int32 max_tokens = 3;
+  uint32 max_tokens = 3; // Changed to uint32 since token counts cannot be negative
   float top_p = 4;
-  float top_k = 5;
+  uint32 top_k = 5;
 }
 
 message GenerateResponse {
@@ -50,8 +50,8 @@ message GenerateResponse {
   InferenceStatus status = 2;
   string error_message = 3;
   
-  int32 tokens_processed = 4;
-  int32 tokens_generated = 5;
+  uint32 tokens_processed = 4; // Changed to uint32 since processed tokens are strictly positive
+  uint32 tokens_generated = 5; // Changed to uint32 since generated tokens are strictly positive
   float duration_ms = 6;
 }
 
@@ -70,7 +70,7 @@ message HealthCheckRequest {}
 message HealthCheckResponse {
   bool is_ready = 1;
   string model_name = 2;
-  int32 context_length = 3;
+  uint32 context_length = 3; // Changed to uint32 since LLM context limits cannot be negative
 }
 
 // =============================================================================

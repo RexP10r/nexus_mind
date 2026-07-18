@@ -38,18 +38,16 @@ class LlamaCppProvider(LMProvider):
             "n_ctx": self._n_ctx,
             "n_batch": self._n_batch,
             "n_ubatch": self._n_ubatch,
+
+            "n_threads": min(os.cpu_count() or 4, self._n_threads),
+            "n_threads_batch": self._n_threads_batch,
+
+            "offload_kqv": self._offload_kqv,
+            "flash_attn": self._flash_attn,
+            "low_vram": self._low_vram,
+            "use_mmap": self._use_mmap,
+            "use_mlock": self._use_mlock,
         }
-
-        kwargs["n_threads"] = self._n_threads
-        kwargs["n_threads"] = min(
-            os.cpu_count() or 4, self._n_gpu_layers)
-        kwargs["n_threads_batch"] = self._n_threads_batch
-
-        kwargs["offload_kqv"] = self._offload_kqv
-        kwargs["flash_attn"] = self._flash_attn
-        kwargs["low_vram"] = self._low_vram
-        kwargs["use_mmap"] = self._use_mmap
-        kwargs["use_mlock"] = self._use_mlock
 
         verbose_level = 1 if "gguf" in self._model_name.lower() else False
 

@@ -9,5 +9,6 @@ dependencies = [
     "grpcio-tools>=1.82.1",
     "llama-cpp-python>=0.3.34",
     "protobuf>=7.35.1",
+    "pydantic-settings>=2.14.2",
     "torch>=2.0.0",
 ]

@@ -7,7 +7,7 @@ from core.providers.llama_cpp import LlamaCppProvider
 
 
 def serve():
-    settings = Settings.from_env()
+    settings = Settings()
 
     provider = LlamaCppProvider(settings=settings)
 

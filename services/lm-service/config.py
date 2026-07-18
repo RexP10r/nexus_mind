@@ -12,7 +12,7 @@ class Settings(BaseSettings):
 
     # Model settings
     model_name: str = Field(
-        default="./models/Qwen3.5-9B-Q4_K_M.gguf", alias="MODEL_NAME")
+        default="./models/omnicoder-9b-q4_k_m.gguf", alias="MODEL_NAME")
     device: str = Field(default="cuda", alias="DEVICE")
     torch_dtype: str = Field(default="auto", alias="TORCH_DTYPE")
 
@@ -27,7 +27,7 @@ class Settings(BaseSettings):
 
     # Memory & Performance
     offload_kqv: bool = Field(default=False, alias="LLAMA_OFFLOAD_KQV")
-    flash_attn: bool = Field(default=True, alias="LLAMA_FLASH_ATTN")
+    flash_attn: bool = Field(default=False, alias="LLAMA_FLASH_ATTN")
     low_vram: bool = Field(default=False, alias="LLAMA_LOW_VRAM")
 
     # Quantization

@@ -15,7 +15,7 @@ class LMProvider(ABC):
         temperature: float = 0.7,
         max_tokens: int = 256,
         top_p: float | None = None,
-        top_k: float | None = None,
+        top_k: int | None = None,
     ) -> GenerateResult:
         pass
 

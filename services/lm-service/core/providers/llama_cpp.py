@@ -47,7 +47,6 @@ class LlamaCppProvider(LMProvider):
             "low_vram": self._low_vram,
             "use_mmap": self._use_mmap,
             "use_mlock": self._use_mlock,
-            "chat_format": "chatml"
         }
 
         verbose_level = 1 if "gguf" in self._model_name.lower() else False
@@ -68,7 +67,7 @@ class LlamaCppProvider(LMProvider):
         temperature: float = 0.7,
         max_tokens: int = 256,
         top_p: float | None = None,
-        top_k: float | None = None,
+        top_k: int | None = None,
     ) -> GenerateResult:
 
         llm_messages = [{"role": m.role, "content": m.content}
@@ -87,7 +86,7 @@ class LlamaCppProvider(LMProvider):
                 temperature=temperature,
                 top_k=top_k,
                 top_p=top_p,
-                response_format={"type": "json_object"},
+                # response_format={"type": "json_object"},
             )
         except Exception as e:
             raise GenerationError(f"Model generation failed: {e}") from e

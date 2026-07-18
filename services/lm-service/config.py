@@ -18,12 +18,14 @@ class Settings(BaseSettings):
 
     # LLaMA.cpp params
     n_gpu_layers: int = Field(default=-1, alias="LLAMA_N_GPU_LAYERS")
-    n_ctx: int = Field(default=16384, alias="LLAMA_N_CTX")
+    n_ctx: int = Field(default=32764, alias="LLAMA_N_CTX")
     n_batch: int = Field(default=512, alias="LLAMA_N_BATCH")
     n_ubatch: int = Field(default=256, alias="LLAMA_N_UBATCH")
     n_threads: int | None = Field(default=None, alias="LLAMA_N_THREADS")
     n_threads_batch: int | None = Field(
         default=None, alias="LLAMA_N_THREADS_BATCH")
+    chat_format: str | None = Field(
+        default=None, alias="LLAMA_CHAT_FORMAT")
 
     # Memory & Performance
     offload_kqv: bool = Field(default=False, alias="LLAMA_OFFLOAD_KQV")

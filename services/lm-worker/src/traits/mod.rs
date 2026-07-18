@@ -13,7 +13,7 @@ pub struct GenerationParams {
 impl Default for GenerationParams {
     fn default() -> Self {
         Self {
-            temperature: 0.7,
+            temperature: 0.2,
             max_tokens: 512,
             top_p: 0.9,
             top_k: 32,

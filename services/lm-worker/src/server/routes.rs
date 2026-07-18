@@ -20,7 +20,6 @@ pub struct ChatRequest {
 pub struct ChatResponse {
     pub conversation_id: String,
     pub message: Message,
-    pub model_text: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -62,9 +61,8 @@ pub async fn chat(
                 conversation_id,
                 message: Message {
                     role: "assistant".into(),
-                    content: agent_result.final_answer.clone(),
+                    content: agent_result.final_answer,
                 },
-                model_text: agent_result.final_answer,
             };
 
             Json(serde_json::to_value(&response).unwrap())

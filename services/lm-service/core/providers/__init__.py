@@ -1,3 +1,3 @@
-from core.providers.transformers import TransformersProvider
+from core.providers.llama_cpp import LlamaCppProvider
 
-__all__ = ["TransformersProvider"]
+__all__ = ["LlamaCppProvider"]

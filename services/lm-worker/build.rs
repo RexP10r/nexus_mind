@@ -16,7 +16,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Some(path) = find_protoc() {
         env::set_var("PROTOC", &path);
     }
-    tonic_build::configure()
-        .compile_protos(&["../../proto/lm_service.proto"], &["../../proto"])?;
+    tonic_build::configure().compile_protos(&["../../proto/lm_service.proto"], &["../../proto"])?;
     Ok(())
 }

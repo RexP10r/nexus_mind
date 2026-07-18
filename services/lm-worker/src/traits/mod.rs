@@ -5,9 +5,9 @@ pub mod tool;
 #[derive(Debug, Clone)]
 pub struct GenerationParams {
     pub temperature: f32,
-    pub max_tokens: i32,
+    pub max_tokens: u32,
     pub top_p: f32,
-    pub top_k: f32,
+    pub top_k: u32,
 }
 
 impl Default for GenerationParams {
@@ -15,8 +15,8 @@ impl Default for GenerationParams {
         Self {
             temperature: 0.7,
             max_tokens: 512,
-            top_p: 0.0,
-            top_k: 0.0,
+            top_p: 0.9,
+            top_k: 32,
         }
     }
 }

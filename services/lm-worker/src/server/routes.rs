@@ -11,9 +11,9 @@ pub struct ChatRequest {
     pub conversation_id: Option<String>,
     pub messages: Vec<Message>,
     pub temperature: Option<f32>,
-    pub max_tokens: Option<i32>,
+    pub max_tokens: Option<u32>,
     pub top_p: Option<f32>,
-    pub top_k: Option<f32>,
+    pub top_k: Option<u32>,
 }
 
 #[derive(Debug, Serialize)]

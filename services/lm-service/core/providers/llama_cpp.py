@@ -39,7 +39,7 @@ class LlamaCppProvider(LMProvider):
             "n_batch": self._n_batch,
             "n_ubatch": self._n_ubatch,
 
-            "n_threads": min(os.cpu_count() or 4, self._n_threads),
+            "n_threads": min(os.cpu_count() or 4, self._n_threads or 4),
             "n_threads_batch": self._n_threads_batch,
 
             "offload_kqv": self._offload_kqv,

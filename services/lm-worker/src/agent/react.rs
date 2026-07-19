@@ -11,7 +11,7 @@ use crate::traits::llm::LlmProvider;
 use crate::traits::GenerationParams;
 
 const REACT_SYSTEM_PROMPT: &str =
-    r#"You are a helpful assistant that uses step-by-step reasoning."#;
+    r#"You are a helpful assistant. Do not think, just give an answer."#;
 
 pub struct ReactAgent {
     llm: Arc<dyn LlmProvider>,

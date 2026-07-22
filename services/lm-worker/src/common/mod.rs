@@ -1,3 +1,4 @@
+pub mod llm_types;
 pub mod tools;
 pub mod traits;
 

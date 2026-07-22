@@ -19,6 +19,12 @@ pub struct Config {
     #[arg(env = "HTTP_PORT", long, default_value_t = 8080)]
     pub http_port: u16,
 
+    #[arg(env = "LOG_LEVEL", long, default_value = "info")]
+    pub log_level: String,
+
+    #[arg(env = "LOG_JSON", long, default_value_t = false)]
+    pub log_json: bool,
+
     #[arg(env = "MAX_ITERATIONS", long, default_value_t = 10)]
     pub max_iterations: u32,
 

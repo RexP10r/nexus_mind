@@ -2,22 +2,19 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "type")]
+#[serde(untagged)]
 pub enum LlmResponse {
-    #[serde(rename = "think")]
     Think {
         thought: String,
         #[serde(skip_serializing_if = "Option::is_none")]
         next_action: Option<Action>,
     },
-    #[serde(rename = "final_answer")]
     FinalAnswer { answer: String },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "action")]
+#[serde(untagged)]
 pub enum Action {
-    #[serde(rename = "execute_tool")]
     ExecuteTool {
         tool_name: String,
         tool_input: String,
@@ -83,14 +80,27 @@ mod tests {
 
     #[test]
     fn test_extract_think() {
-        let raw = r#"{"type": "think", "thought": "I need to calculate", "next_action": {"action": "execute_tool", "tool_name": "calculate", "tool_input": "2+2"}}"#;
+        let raw = r#"{"thought": "I need to calculate", "next_action": {"tool_name": "calculate", "tool_input": "2+2"}}"#;
+        let resp = extract_llm_response(raw).unwrap();
+        match resp {
+            LlmResponse::Think { thought, next_action } => {
+                assert_eq!(thought, "I need to calculate");
+                assert!(next_action.is_some());
+            }
+            _ => panic!("expected Think"),
+        }
+    }
+
+    #[test]
+    fn test_extract_think_without_next_action() {
+        let raw = r#"{"thought": "Just thinking without tools"}"#;
         let resp = extract_llm_response(raw).unwrap();
         assert!(matches!(resp, LlmResponse::Think { .. }));
     }
 
     #[test]
     fn test_extract_final_answer() {
-        let raw = r#"{"type": "final_answer", "answer": "42"}"#;
+        let raw = r#"{"answer": "42"}"#;
         let resp = extract_llm_response(raw).unwrap();
         match resp {
             LlmResponse::FinalAnswer { answer } => assert_eq!(answer, "42"),
@@ -100,7 +110,7 @@ mod tests {
 
     #[test]
     fn test_extract_with_markdown_fence() {
-        let raw = "```json\n{\"type\": \"final_answer\", \"answer\": \"Paris\"}\n```";
+        let raw = "```json\n{\"answer\": \"Paris\"}\n```";
         let resp = extract_llm_response(raw).unwrap();
         match resp {
             LlmResponse::FinalAnswer { answer } => assert_eq!(answer, "Paris"),
@@ -111,6 +121,12 @@ mod tests {
     #[test]
     fn test_extract_invalid() {
         let raw = "some random text without json";
+        assert!(extract_llm_response(raw).is_err());
+    }
+
+    #[test]
+    fn test_extract_invalid_json_but_not_valid_shape() {
+        let raw = r#"{"foo": "bar"}"#;
         assert!(extract_llm_response(raw).is_err());
     }
 

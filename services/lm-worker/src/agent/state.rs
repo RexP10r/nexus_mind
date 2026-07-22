@@ -3,6 +3,7 @@ use uuid::Uuid;
 use crate::agent::{AgentAction, AgentStep, Message};
 use crate::error::WorkerError;
 
+#[derive(Debug)]
 pub struct AgentState {
     pub id: Uuid,
     pub tokens_used: u32,
@@ -50,7 +51,7 @@ impl AgentState {
     ) -> AgentState {
         let mut new_state = self.clone_state();
         new_state.conversation.push(Message {
-            role: "system".to_string(),
+            role: "assistant".to_string(),
             content: format!("Observation: {}", observation),
         });
         new_state.reasoning_steps.push(AgentStep {

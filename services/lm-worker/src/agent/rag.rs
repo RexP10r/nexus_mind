@@ -59,14 +59,36 @@ impl RAGAgent {
         tool_name: String,
         tool_input: String,
     ) {
-        let observation = if tool_name.trim().is_empty() || tool_input.trim().is_empty() {
-            format!(
+        if tool_name.trim().is_empty() || tool_input.trim().is_empty() {
+            let observation = format!(
                 "Tool invocation failed: tool_name and tool_input must be non-empty. Got tool_name='{}', tool_input='{}'",
                 tool_name, tool_input
-            )
-        } else {
-            self.execute_tool(&tool_name, &tool_input)
-        };
+            );
+            tracing::warn!(
+                tool_name = %tool_name,
+                tool_input = %tool_input,
+                "Empty tool name or input"
+            );
+            let action = AgentAction::ExecuteTool {
+                tool_name,
+                tool_input,
+            };
+            *state = state.add_turn(thought, observation, Some(action));
+            return;
+        }
+
+        let start = std::time::Instant::now();
+        let observation = self.execute_tool(&tool_name, &tool_input);
+        let elapsed_ms = start.elapsed().as_millis();
+
+        tracing::info!(
+            tool_name = %tool_name,
+            tool_input = %tool_input,
+            observation = %observation,
+            elapsed_ms,
+            "Tool executed"
+        );
+
         let action = AgentAction::ExecuteTool {
             tool_name,
             tool_input,
@@ -80,11 +102,14 @@ impl RAGAgent {
         llm_response: LlmResponse,
     ) -> Option<AgentResult> {
         match llm_response {
-            LlmResponse::FinalAnswer { answer } => Some(AgentResult {
-                final_answer: answer,
-                total_tokens: state.tokens_used,
-                reasoning_steps: state.reasoning_steps.clone(),
-            }),
+            LlmResponse::FinalAnswer { answer } => {
+                tracing::info!(answer = %answer, "Agent reached final answer");
+                Some(AgentResult {
+                    final_answer: answer,
+                    total_tokens: state.tokens_used,
+                    reasoning_steps: state.reasoning_steps.clone(),
+                })
+            }
             LlmResponse::Think {
                 thought,
                 next_action,
@@ -93,10 +118,19 @@ impl RAGAgent {
                     tool_name,
                     tool_input,
                 }) => {
+                    tracing::info!(
+                        thought = %thought,
+                        tool_name = %tool_name,
+                        "Agent decided to use tool"
+                    );
                     self.execute_tool_action(state, thought, tool_name, tool_input);
                     None
                 }
                 None => {
+                    tracing::info!(
+                        thought = %thought,
+                        "Agent thinking without tool action"
+                    );
                     state.reasoning_steps.push(AgentStep {
                         thought: thought.clone(),
                         action: None,
@@ -112,6 +146,10 @@ impl RAGAgent {
         }
     }
 
+    #[tracing::instrument(skip(self, params, state), fields(
+        state_id = %state.id,
+        conversation_len = state.conversation.len(),
+    ))]
     async fn execute_state(
         &self,
         mut state: AgentState,
@@ -126,6 +164,12 @@ impl RAGAgent {
         loop {
             iteration += 1;
             if iteration > max_iterations {
+                tracing::warn!(
+                    iteration,
+                    max_iterations,
+                    tokens_used = state.tokens_used,
+                    "Max iterations reached"
+                );
                 return Ok(AgentResult {
                     final_answer: format!(
                         "Agent stopped after {} iterations without final answer",
@@ -136,26 +180,65 @@ impl RAGAgent {
                 });
             }
 
+            tracing::info!(iteration, max_iterations, "Agent iteration");
+
             let llm_messages = messages_to_llm(&state.conversation, &system_prompt);
+            let llm_start = std::time::Instant::now();
+
             let response = tokio::time::timeout(
                 self.request_timeout,
                 self.llm.generate(llm_messages, params),
             )
             .await
-            .map_err(|_| WorkerError::LlmTimeout(self.request_timeout.as_secs()))?
-            .map_err(|e| WorkerError::LlmProvider(e.to_string()))?;
+            .map_err(|_| {
+                tracing::error!(
+                    timeout_secs = self.request_timeout.as_secs(),
+                    iteration,
+                    "LLM request timed out"
+                );
+                WorkerError::LlmTimeout(self.request_timeout.as_secs())
+            })?
+            .map_err(|e| {
+                tracing::error!(
+                    error = %e,
+                    iteration,
+                    "LLM generation failed"
+                );
+                WorkerError::LlmProvider(e.to_string())
+            })?;
+
+            let llm_elapsed_ms = llm_start.elapsed().as_millis();
 
             state.consume_tokens(response.tokens_processed, response.tokens_generated)?;
+
+            tracing::info!(
+                iteration,
+                tokens_processed = response.tokens_processed,
+                tokens_generated = response.tokens_generated,
+                tokens_total = state.tokens_used,
+                llm_elapsed_ms,
+                "LLM response received"
+            );
 
             match extract_llm_response(&response.text) {
                 Ok(llm_response) => {
                     if let Some(result) = self.handle_parsed_response(&mut state, llm_response) {
+                        tracing::info!(
+                            total_tokens = result.total_tokens,
+                            reasoning_steps = result.reasoning_steps.len(),
+                            "Agent run completed"
+                        );
                         return Ok(result);
                     }
                 }
-                Err(_) => {
+                Err(raw) => {
+                    tracing::warn!(
+                        iteration,
+                        raw_preview = %raw.chars().take(200).collect::<String>(),
+                        "Failed to parse LLM response as JSON"
+                    );
                     state.conversation.push(Message {
-                        role: "system".to_string(),
+                        role: "user".to_string(),
                         content:
                             "Your last response was not valid JSON. Output ONLY valid JSON matching the schema."
                                 .to_string(),
@@ -168,11 +251,21 @@ impl RAGAgent {
 
 #[async_trait]
 impl Agent for RAGAgent {
+    #[tracing::instrument(skip(self, messages, params),
+        fields(message_count = messages.len())
+    )]
     async fn run(
         &self,
         messages: &[Message],
         params: &GenerationParams,
     ) -> Result<AgentResult, WorkerError> {
+        for msg in messages {
+            tracing::info!(
+                role = %msg.role,
+                content = %msg.content,
+                "User message"
+            );
+        }
         let state = AgentState::new(messages);
         self.execute_state(state, params).await
     }

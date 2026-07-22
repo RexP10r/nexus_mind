@@ -36,6 +36,10 @@ impl<T: Tool> ToolRegistry<T> {
             .collect::<Vec<_>>()
             .join("\n")
     }
+
+    pub fn tool_count(&self) -> usize {
+        self.tools.len()
+    }
 }
 
 impl<T: Tool> Default for ToolRegistry<T> {

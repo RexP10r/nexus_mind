@@ -18,18 +18,48 @@ impl ChatRequest {
     }
 }
 
+#[tracing::instrument(skip(state, req), fields(
+    conversation_id = tracing::field::Empty,
+    message_count = req.messages.len(),
+))]
 pub async fn chat(
     State(state): State<AppState>,
     Json(req): Json<ChatRequest>,
 ) -> (StatusCode, Json<serde_json::Value>) {
+    let conversation_id = req
+        .conversation_id
+        .clone()
+        .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+
+    tracing::Span::current()
+        .record("conversation_id", &conversation_id);
+
     let default_params = GenerationParams::default();
     let params = req.to_generation_params(default_params);
 
-    match state.agent.run(&req.messages, &params).await {
+    let temperature_fmt = format!("{:.3}", params.temperature);
+    let top_p_fmt = format!("{:.3}", params.top_p);
+
+    tracing::info!(
+        temperature = %temperature_fmt,
+        max_tokens = params.max_tokens,
+        top_p = %top_p_fmt,
+        top_k = params.top_k,
+        "Processing chat request"
+    );
+
+    let start = std::time::Instant::now();
+    let result = state.agent.run(&req.messages, &params).await;
+    let elapsed_ms = start.elapsed().as_millis();
+
+    match result {
         Ok(agent_result) => {
-            let conversation_id = req
-                .conversation_id
-                .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+            tracing::info!(
+                total_tokens = agent_result.total_tokens,
+                reasoning_steps = agent_result.reasoning_steps.len(),
+                elapsed_ms,
+                "Chat completed successfully"
+            );
 
             let response = ChatResponse {
                 conversation_id,
@@ -42,6 +72,12 @@ pub async fn chat(
             (StatusCode::OK, Json(serde_json::to_value(&response).unwrap()))
         }
         Err(e) => {
+            tracing::error!(
+                error = %e,
+                elapsed_ms,
+                "Chat request failed"
+            );
+
             let error = ErrorResponse {
                 error: e.to_string(),
                 status: "error".into(),

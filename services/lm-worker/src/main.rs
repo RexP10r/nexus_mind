@@ -11,7 +11,7 @@ use crate::common::tools::calculator::CalculatorTool;
 use crate::common::tools::registry::ToolRegistry;
 use crate::common::traits::agent::Agent;
 use crate::common::traits::llm::LlmProvider;
-use crate::config::Config;
+use crate::config::{Config, ProviderType, AgentType};
 use crate::error::WorkerError;
 use crate::provider::grpc::GrpcLlmProvider;
 use crate::server::AppState;
@@ -36,30 +36,39 @@ async fn verify_provider(provider: &Arc<dyn LlmProvider>) -> Result<(), WorkerEr
         }
     }
 }
-async fn init_agent(config: &Config) -> Result<Arc<dyn Agent>, WorkerError> {
-    tracing::info!("Connecting to gRPC server at {}...", config.grpc_addr);
-    let llm = GrpcLlmProvider::connect(&config.grpc_addr).await?;
 
-    let llm: Arc<dyn LlmProvider> = Arc::new(llm);
+async fn init_llm(config: &Config) -> Result<Arc<dyn LlmProvider>, WorkerError> {
+    let llm: Arc<dyn LlmProvider> = match config.provider_type {
+        ProviderType::Grpc => {
+            tracing::info!("Connecting to gRPC server at {}...", config.grpc_addr);
+            let provider = GrpcLlmProvider::connect(&config.grpc_addr).await?;
+            Arc::new(provider)
+        }
+    };
     verify_provider(&llm).await?;
-
-    let tool_registry = ToolRegistry::from_tools(vec![Box::new(CalculatorTool)]);
-
-    Ok(Arc::new(RAGAgent::new(
-        Arc::clone(&llm),
-        tool_registry,
-        config.max_iterations,
-    )))
+    Ok(llm)
 }
+
+async fn init_agent(
+    llm: Arc<dyn LlmProvider>,
+    config: &Config,
+) -> Result<Arc<dyn Agent>, WorkerError> {
+    let agent: Arc<dyn Agent> = match config.agent_type {
+        AgentType::RAG => {
+            let tool_registry = ToolRegistry::from_tools(vec![Box::new(CalculatorTool)]);
+            Arc::new(RAGAgent::new(llm, tool_registry, config.max_iterations))
+        }
+    };
+    Ok(agent)
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<(), WorkerError> {
     tracing_subscriber::fmt::init();
 
     let config = Config::from_env();
-    let agent = match init_agent(&config).await {
-        Ok(agent) => agent,
-        Err(e) => return Err(e),
-    };
+    let llm = init_llm(&config).await?;
+    let agent = init_agent(llm, &config).await?;
 
     let state = AppState { agent };
 

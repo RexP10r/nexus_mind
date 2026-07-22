@@ -9,19 +9,20 @@ use crate::agent::{AgentAction, AgentResult, AgentStep, Message};
 use crate::common::tools::registry::ToolRegistry;
 use crate::common::traits::agent::Agent;
 use crate::common::traits::llm::LlmProvider;
+use crate::common::traits::tool::Tool;
 use crate::common::GenerationParams;
 use crate::error::WorkerError;
 use crate::grpc::lm_service::{ChatMessage, MessageRole};
 
 const MAX_RETRY_ON_PARSE_FAILURE: u32 = 2;
 
-pub struct RAGAgent {
+pub struct RAGAgent<T: Tool> {
     llm: Arc<dyn LlmProvider>,
-    tool_registry: ToolRegistry,
+    tool_registry: ToolRegistry<T>,
 }
 
-impl RAGAgent {
-    pub fn new(llm: Arc<dyn LlmProvider>, tool_registry: ToolRegistry) -> Self {
+impl<T: Tool> RAGAgent<T> {
+    pub fn new(llm: Arc<dyn LlmProvider>, tool_registry: ToolRegistry<T>) -> Self {
         Self { llm, tool_registry }
     }
 
@@ -50,7 +51,7 @@ impl RAGAgent {
     }
     async fn execute_state(
         &self,
-        mut state: AgentState,
+        state: &mut AgentState,
         params: &GenerationParams,
     ) -> Result<AgentResult, WorkerError> {
         let tool_descriptions = self.tool_registry.tool_descriptions();
@@ -78,7 +79,7 @@ impl RAGAgent {
                             MAX_RETRY_ON_PARSE_FAILURE
                         ),
                         total_tokens: state.tokens_used,
-                        reasoning_steps: state.reasoning_steps,
+                        reasoning_steps: state.reasoning_steps.clone(),
                     });
                 }
                 state.conversation.push(Message {
@@ -92,7 +93,7 @@ impl RAGAgent {
             LlmResponse::FinalAnswer { answer } => Ok(AgentResult {
                 final_answer: answer,
                 total_tokens: state.tokens_used,
-                reasoning_steps: state.reasoning_steps,
+                reasoning_steps: state.reasoning_steps.clone(),
             }),
             LlmResponse::Think {
                 thought,
@@ -119,8 +120,8 @@ impl RAGAgent {
                         tool_name,
                         tool_input,
                     };
-                    let new_state = state.add_turn(thought, observation, Some(action));
-                    Box::pin(self.execute_state(new_state, params)).await
+                    state.add_turn(thought, observation, Some(action));
+                    Box::pin(self.execute_state(state, params)).await
                 }
                 None => {
                     state.reasoning_steps.push(AgentStep {
@@ -140,13 +141,13 @@ impl RAGAgent {
 }
 
 #[async_trait]
-impl Agent for RAGAgent {
+impl<T: Tool> Agent for RAGAgent<T> {
     async fn run(
         &self,
         messages: &[Message],
         params: &GenerationParams,
     ) -> Result<AgentResult, WorkerError> {
-        let state = AgentState::new(messages);
-        Self::execute_state(&self, state, params).await
+        let mut state = AgentState::new(messages);
+        Self::execute_state(&self, &mut state, params).await
     }
 }

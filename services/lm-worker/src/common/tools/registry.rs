@@ -2,18 +2,18 @@ use std::collections::HashMap;
 
 use crate::common::traits::tool::Tool;
 
-pub struct ToolRegistry {
-    tools: HashMap<String, Box<dyn Tool>>,
+pub struct ToolRegistry<T: Tool> {
+    tools: HashMap<String, Box<T>>,
 }
 
-impl ToolRegistry {
+impl<T: Tool> ToolRegistry<T> {
     pub fn new() -> Self {
         Self {
             tools: HashMap::new(),
         }
     }
 
-    pub fn from_tools(tools: Vec<Box<dyn Tool>>) -> Self {
+    pub fn from_tools(tools: Vec<Box<T>>) -> Self {
         let mut registry = Self::new();
         for tool in tools {
             registry.register(tool);
@@ -21,7 +21,7 @@ impl ToolRegistry {
         registry
     }
 
-    pub fn register(&mut self, tool: Box<dyn Tool>) {
+    pub fn register(&mut self, tool: Box<T>) {
         self.tools.insert(tool.name().to_string(), tool);
     }
 
@@ -38,7 +38,7 @@ impl ToolRegistry {
     }
 }
 
-impl Default for ToolRegistry {
+impl<T: Tool> Default for ToolRegistry<T> {
     fn default() -> Self {
         Self::new()
     }

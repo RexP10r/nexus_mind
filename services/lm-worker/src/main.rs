@@ -45,7 +45,11 @@ async fn init_agent(config: &Config) -> Result<Arc<dyn Agent>, WorkerError> {
 
     let tool_registry = ToolRegistry::from_tools(vec![Box::new(CalculatorTool)]);
 
-    Ok(Arc::new(RAGAgent::new(Arc::clone(&llm), tool_registry)))
+    Ok(Arc::new(RAGAgent::new(
+        Arc::clone(&llm),
+        tool_registry,
+        config.max_iterations,
+    )))
 }
 #[tokio::main]
 async fn main() -> anyhow::Result<(), WorkerError> {

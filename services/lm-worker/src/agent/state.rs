@@ -1,6 +1,7 @@
 use uuid::Uuid;
 
 use crate::agent::{AgentAction, AgentStep, Message};
+use crate::error::WorkerError;
 
 pub struct AgentState {
     pub id: Uuid,
@@ -18,12 +19,20 @@ impl AgentState {
             reasoning_steps: Vec::new(),
         }
     }
-    pub fn consume_tokens(&mut self, prompt_tokens: u32, completion_tokens: u32) {
+
+    pub fn consume_tokens(
+        &mut self,
+        prompt_tokens: u32,
+        completion_tokens: u32,
+    ) -> Result<(), WorkerError> {
         self.tokens_used = self
             .tokens_used
-            .saturating_add(prompt_tokens)
-            .saturating_add(completion_tokens);
+            .checked_add(prompt_tokens)
+            .and_then(|v| v.checked_add(completion_tokens))
+            .ok_or_else(|| WorkerError::Agent("token counter overflow".to_string()))?;
+        Ok(())
     }
+
     fn clone_state(&self) -> AgentState {
         AgentState {
             id: self.id,
@@ -32,6 +41,7 @@ impl AgentState {
             reasoning_steps: self.reasoning_steps.clone(),
         }
     }
+
     pub fn add_turn(
         &self,
         thought: String,
@@ -44,9 +54,9 @@ impl AgentState {
             content: format!("Observation: {}", observation),
         });
         new_state.reasoning_steps.push(AgentStep {
-            thought: thought,
+            thought,
             observation: Some(observation),
-            action: action,
+            action,
         });
         new_state
     }

@@ -22,3 +22,12 @@ class LMProvider(ABC):
     @abstractmethod
     def health_check(self) -> HealthInfo:
         pass
+
+    def close(self) -> None:
+        pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.close()

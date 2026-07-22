@@ -1,37 +1,11 @@
-use axum::{extract::State, Json};
-use serde::{Deserialize, Serialize};
+use axum::extract::State;
+use axum::http::StatusCode;
+use axum::Json;
 
 use crate::agent::Message;
-use crate::server::AppState;
 use crate::common::GenerationParams;
-
-#[derive(Debug, Deserialize)]
-pub struct ChatRequest {
-    #[serde(default)]
-    pub conversation_id: Option<String>,
-    pub messages: Vec<Message>,
-    pub temperature: Option<f32>,
-    pub max_tokens: Option<u32>,
-    pub top_p: Option<f32>,
-    pub top_k: Option<u32>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct ChatResponse {
-    pub conversation_id: String,
-    pub message: Message,
-}
-
-#[derive(Debug, Serialize)]
-pub struct ErrorResponse {
-    pub error: String,
-    pub status: String,
-}
-
-#[derive(Debug, Serialize)]
-pub struct HealthResponse {
-    pub status: String,
-}
+use crate::server::dto::{ChatRequest, ChatResponse, ErrorResponse, HealthResponse};
+use crate::server::AppState;
 
 impl ChatRequest {
     fn to_generation_params(&self, defaults: GenerationParams) -> GenerationParams {
@@ -47,7 +21,7 @@ impl ChatRequest {
 pub async fn chat(
     State(state): State<AppState>,
     Json(req): Json<ChatRequest>,
-) -> Json<serde_json::Value> {
+) -> (StatusCode, Json<serde_json::Value>) {
     let default_params = GenerationParams::default();
     let params = req.to_generation_params(default_params);
 
@@ -65,21 +39,24 @@ pub async fn chat(
                 },
             };
 
-            Json(serde_json::to_value(&response).unwrap())
+            (StatusCode::OK, Json(serde_json::to_value(&response).unwrap()))
         }
         Err(e) => {
             let error = ErrorResponse {
                 error: e.to_string(),
                 status: "error".into(),
             };
-            Json(serde_json::to_value(&error).unwrap())
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::to_value(&error).unwrap()),
+            )
         }
     }
 }
 
-pub async fn health(State(_state): State<AppState>) -> Json<serde_json::Value> {
+pub async fn health(State(_state): State<AppState>) -> (StatusCode, Json<serde_json::Value>) {
     let health = HealthResponse {
         status: "ok".into(),
     };
-    Json(serde_json::to_value(&health).unwrap())
+    (StatusCode::OK, Json(serde_json::to_value(&health).unwrap()))
 }

@@ -27,6 +27,7 @@ class LlamaCppProvider(LMProvider):
         self._use_mlock = settings.use_mlock
         self._chat_format = settings.chat_format
 
+        self._model = None
         self.load_model()
 
     def load_model(self):
@@ -109,3 +110,7 @@ class LlamaCppProvider(LMProvider):
             model_name=self._model_name,
             context_length=self._model.n_ctx(),
         )
+
+    def close(self) -> None:
+        if self._model is not None:
+            self._model = None

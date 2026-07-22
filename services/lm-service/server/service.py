@@ -8,11 +8,17 @@ from core.exceptions import ModelNotLoadedError, GenerationError
 
 
 _ROLE_MAP = {
-    pb2.ROLE_UNSPECIFIED: "user",
     pb2.ROLE_SYSTEM: "system",
     pb2.ROLE_USER: "user",
     pb2.ROLE_ASSISTANT: "assistant",
 }
+
+
+def _to_domain_role(proto_role: int) -> str:
+    role = _ROLE_MAP.get(proto_role)
+    if role is None:
+        raise ModelNotLoadedError(f"unsupported message role: {proto_role}")
+    return role
 
 
 class LMInferenceService(pb2_grpc.LMServiceServicer):
@@ -23,7 +29,7 @@ class LMInferenceService(pb2_grpc.LMServiceServicer):
         try:
             messages = [
                 ChatMessage(
-                    role=_ROLE_MAP.get(msg.role, "user"),
+                    role=_to_domain_role(msg.role),
                     content=msg.content,
                 )
                 for msg in request.messages

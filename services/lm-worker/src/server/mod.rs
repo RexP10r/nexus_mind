@@ -1,3 +1,4 @@
+pub mod dto;
 pub mod routes;
 
 use std::sync::Arc;

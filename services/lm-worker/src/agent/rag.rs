@@ -6,26 +6,13 @@ use crate::agent::prompt::build_system_prompt;
 use crate::agent::schema::{extract_llm_response, Action, LlmResponse};
 use crate::agent::state::AgentState;
 use crate::agent::{AgentAction, AgentResult, AgentStep, Message};
-use crate::common::llm_types::{LlmMessage, LlmRole};
+use crate::common::llm_types::messages_to_llm;
 use crate::common::tools::registry::ToolRegistry;
 use crate::common::traits::agent::Agent;
 use crate::common::traits::llm::LlmProvider;
-use crate::common::traits::tool::Tool;
 use crate::common::GenerationParams;
 use crate::error::WorkerError;
 
-<<<<<<< HEAD
-const MAX_RETRY_ON_PARSE_FAILURE: u32 = 2;
-
-pub struct RAGAgent<T: Tool> {
-    llm: Arc<dyn LlmProvider>,
-    tool_registry: ToolRegistry<T>,
-}
-
-impl<T: Tool> RAGAgent<T> {
-    pub fn new(llm: Arc<dyn LlmProvider>, tool_registry: ToolRegistry<T>) -> Self {
-        Self { llm, tool_registry }
-=======
 pub struct RAGAgent {
     llm: Arc<dyn LlmProvider>,
     tool_registry: ToolRegistry,
@@ -43,73 +30,7 @@ impl RAGAgent {
             tool_registry,
             max_iterations,
         }
->>>>>>> cd81127 (fix(services/lm-worker): rag pipeline recursive -> loop + nadlers)
     }
-
-    fn to_llm_messages(&self, messages: &[Message], system_prompt: &str) -> Vec<LlmMessage> {
-        let mut llm_msgs: Vec<LlmMessage> = Vec::with_capacity(messages.len() + 1);
-
-        llm_msgs.push(LlmMessage {
-            role: LlmRole::System,
-            content: system_prompt.to_string(),
-        });
-
-        for msg in messages {
-            let role = match msg.role.as_str() {
-                "system" => LlmRole::System,
-                "user" => LlmRole::User,
-                "assistant" => LlmRole::Assistant,
-                _ => LlmRole::User,
-            };
-            llm_msgs.push(LlmMessage {
-                role,
-                content: msg.content.clone(),
-            });
-        }
-
-        llm_msgs
-    }
-<<<<<<< HEAD
-    async fn execute_state(
-        &self,
-        state: &mut AgentState,
-        params: &GenerationParams,
-    ) -> Result<AgentResult, WorkerError> {
-        let tool_descriptions = self.tool_registry.tool_descriptions();
-        let system_prompt = build_system_prompt(&tool_descriptions);
-
-        let proto_messages = self.to_proto_messages(&state.conversation, &system_prompt);
-        let response = self
-            .llm
-            .generate(proto_messages, params)
-            .await
-            .map_err(|e| WorkerError::LlmProvider(e.to_string()))?;
-
-        let prompt_tokens = response.tokens_processed as u32;
-        let completion_tokens = response.tokens_generated as u32;
-        state.consume_tokens(prompt_tokens, completion_tokens);
-
-        let raw_text = response.text.clone();
-        let llm_response = match extract_llm_response(&raw_text) {
-            Ok(resp) => resp,
-            Err(_) => {
-                if state.reasoning_steps.len() as u32 >= MAX_RETRY_ON_PARSE_FAILURE {
-                    return Ok(AgentResult {
-                        final_answer: format!(
-                            "Failed to produce valid JSON after {} attempts",
-                            MAX_RETRY_ON_PARSE_FAILURE
-                        ),
-                        total_tokens: state.tokens_used,
-                        reasoning_steps: state.reasoning_steps.clone(),
-                    });
-                }
-                state.conversation.push(Message {
-                    role: "system".to_string(),
-                    content: "Your last response was not valid JSON. Output ONLY valid JSON matching the schema.".to_string(),
-                });
-                return Box::pin(self.execute_state(state, params)).await;
-            }
-=======
 
     fn tool_not_found_message(&self, tool_name: &str) -> String {
         let desc = self.tool_registry.tool_descriptions();
@@ -117,7 +38,6 @@ impl RAGAgent {
             "none".to_string()
         } else {
             desc
->>>>>>> cd81127 (fix(services/lm-worker): rag pipeline recursive -> loop + nadlers)
         };
         format!("Tool '{}' not found. Available: {}", tool_name, available)
     }
@@ -162,30 +82,8 @@ impl RAGAgent {
                     tool_name,
                     tool_input,
                 }) => {
-<<<<<<< HEAD
-                    let observation = self
-                        .tool_registry
-                        .execute(&tool_name, &tool_input)
-                        .unwrap_or_else(|| {
-                            format!("Tool '{}' not found. Available: {}", tool_name, {
-                                let desc = self.tool_registry.tool_descriptions();
-                                if desc.is_empty() {
-                                    "none".to_string()
-                                } else {
-                                    desc
-                                }
-                            })
-                        });
-                    let action = AgentAction::ExecuteTool {
-                        tool_name,
-                        tool_input,
-                    };
-                    state.add_turn(thought, observation, Some(action));
-                    Box::pin(self.execute_state(state, params)).await
-=======
                     self.execute_tool_action(state, thought, tool_name, tool_input);
                     None
->>>>>>> cd81127 (fix(services/lm-worker): rag pipeline recursive -> loop + nadlers)
                 }
                 None => {
                     state.reasoning_steps.push(AgentStep {
@@ -227,14 +125,14 @@ impl RAGAgent {
                 });
             }
 
-            let llm_messages = self.to_llm_messages(&state.conversation, &system_prompt);
+            let llm_messages = messages_to_llm(&state.conversation, &system_prompt);
             let response = self
                 .llm
                 .generate(llm_messages, params)
                 .await
                 .map_err(|e| WorkerError::LlmProvider(e.to_string()))?;
 
-            state.consume_tokens(response.tokens_processed, response.tokens_generated);
+            state.consume_tokens(response.tokens_processed, response.tokens_generated)?;
 
             match extract_llm_response(&response.text) {
                 Ok(llm_response) => {
@@ -256,18 +154,13 @@ impl RAGAgent {
 }
 
 #[async_trait]
-impl<T: Tool> Agent for RAGAgent<T> {
+impl Agent for RAGAgent {
     async fn run(
         &self,
         messages: &[Message],
         params: &GenerationParams,
     ) -> Result<AgentResult, WorkerError> {
-<<<<<<< HEAD
-        let mut state = AgentState::new(messages);
-        Self::execute_state(&self, &mut state, params).await
-=======
         let state = AgentState::new(messages);
         self.execute_state(state, params).await
->>>>>>> cd81127 (fix(services/lm-worker): rag pipeline recursive -> loop + nadlers)
     }
 }

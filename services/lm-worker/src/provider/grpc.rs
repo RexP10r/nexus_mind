@@ -1,13 +1,13 @@
 use async_trait::async_trait;
 use tonic::transport::Channel;
 
+use crate::common::traits::llm::LlmProvider;
+use crate::common::GenerationParams;
 use crate::error::WorkerError;
 use crate::grpc::lm_service::{
     lm_service_client::LmServiceClient, ChatMessage, GenerateRequest, GenerateResponse,
     HealthCheckRequest, HealthCheckResponse,
 };
-use crate::traits::llm::LlmProvider;
-use crate::traits::GenerationParams;
 
 pub struct GrpcLlmProvider {
     client: LmServiceClient<Channel>,

@@ -2,7 +2,7 @@ pub mod routes;
 
 use std::sync::Arc;
 
-use crate::traits::agent::Agent;
+use crate::common::traits::agent::Agent;
 
 #[derive(Clone)]
 pub struct AppState {

@@ -1,18 +1,20 @@
 mod agent;
+mod common;
 mod config;
 mod error;
 mod grpc;
 mod provider;
 mod server;
-mod traits;
 
-use crate::agent::react::ReactAgent;
+use crate::agent::rag::RAGAgent;
+use crate::common::tools::calculator::CalculatorTool;
+use crate::common::tools::registry::ToolRegistry;
+use crate::common::traits::agent::Agent;
+use crate::common::traits::llm::LlmProvider;
 use crate::config::Config;
 use crate::error::WorkerError;
 use crate::provider::grpc::GrpcLlmProvider;
 use crate::server::AppState;
-use crate::traits::agent::Agent;
-use crate::traits::llm::LlmProvider;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
@@ -41,7 +43,9 @@ async fn init_agent(config: &Config) -> Result<Arc<dyn Agent>, WorkerError> {
     let llm: Arc<dyn LlmProvider> = Arc::new(llm);
     verify_provider(&llm).await?;
 
-    Ok(Arc::new(ReactAgent::new(Arc::clone(&llm))))
+    let tool_registry = ToolRegistry::from_tools(vec![Box::new(CalculatorTool)]);
+
+    Ok(Arc::new(RAGAgent::new(Arc::clone(&llm), tool_registry)))
 }
 #[tokio::main]
 async fn main() -> anyhow::Result<(), WorkerError> {

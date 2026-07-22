@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 
 use crate::grpc::lm_service::{ChatMessage, GenerateResponse, HealthCheckResponse};
-use crate::traits::GenerationParams;
+use crate::common::GenerationParams;
 
 #[async_trait]
 pub trait LlmProvider: Send + Sync {

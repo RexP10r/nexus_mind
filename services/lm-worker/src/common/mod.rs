@@ -1,6 +1,5 @@
-pub mod llm;
-pub mod agent;
-pub mod tool;
+pub mod tools;
+pub mod traits;
 
 #[derive(Debug, Clone)]
 pub struct GenerationParams {

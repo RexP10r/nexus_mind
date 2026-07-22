@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::agent::Message;
 use crate::server::AppState;
-use crate::traits::GenerationParams;
+use crate::common::GenerationParams;
 
 #[derive(Debug, Deserialize)]
 pub struct ChatRequest {

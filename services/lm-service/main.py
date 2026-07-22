@@ -16,17 +16,20 @@ def serve(provider: LMProvider | None = None):
     if provider is None:
         provider = LlamaCppProvider(settings=settings)
 
-    def shutdown():
-        provider.close()
-        sys.exit(0)
-
-    signal.signal(signal.SIGINT, shutdown)
-    signal.signal(signal.SIGTERM, shutdown)
-
     with provider:
         service = LMInferenceService(provider)
         server = GRPCServer(settings, service)
         server.register(pb2_grpc.add_LMServiceServicer_to_server)
+
+        def handler(*_):
+            server.stop(grace=30)
+            server.wait()
+            provider.close()
+            sys.exit(0)
+
+        signal.signal(signal.SIGINT, handler)
+        signal.signal(signal.SIGTERM, handler)
+
         server.start()
         server.wait()
 

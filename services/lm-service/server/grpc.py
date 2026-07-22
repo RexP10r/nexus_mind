@@ -21,5 +21,8 @@ class GRPCServer:
         self._server.start()
         print(f"gRPC server listening on {address}")
 
+    def stop(self, grace: float | None = 30.0) -> None:
+        self._server.stop(grace)
+
     def wait(self) -> None:
         self._server.wait_for_termination()

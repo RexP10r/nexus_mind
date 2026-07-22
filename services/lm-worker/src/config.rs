@@ -22,6 +22,9 @@ pub struct Config {
     #[arg(env = "MAX_ITERATIONS", long, default_value_t = 10)]
     pub max_iterations: u32,
 
+    #[arg(env = "REQUEST_TIMEOUT_SECS", long, default_value_t = 60)]
+    pub request_timeout_secs: u64,
+
     #[arg(env = "PROVIDER_TYPE", long, default_value = "grpc")]
     pub provider_type: ProviderType,
 

@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use async_trait::async_trait;
 
@@ -17,6 +18,7 @@ pub struct RAGAgent {
     llm: Arc<dyn LlmProvider>,
     tool_registry: ToolRegistry,
     max_iterations: u32,
+    request_timeout: Duration,
 }
 
 impl RAGAgent {
@@ -24,11 +26,13 @@ impl RAGAgent {
         llm: Arc<dyn LlmProvider>,
         tool_registry: ToolRegistry,
         max_iterations: u32,
+        request_timeout_secs: u64,
     ) -> Self {
         Self {
             llm,
             tool_registry,
             max_iterations,
+            request_timeout: Duration::from_secs(request_timeout_secs),
         }
     }
 
@@ -55,7 +59,14 @@ impl RAGAgent {
         tool_name: String,
         tool_input: String,
     ) {
-        let observation = self.execute_tool(&tool_name, &tool_input);
+        let observation = if tool_name.trim().is_empty() || tool_input.trim().is_empty() {
+            format!(
+                "Tool invocation failed: tool_name and tool_input must be non-empty. Got tool_name='{}', tool_input='{}'",
+                tool_name, tool_input
+            )
+        } else {
+            self.execute_tool(&tool_name, &tool_input)
+        };
         let action = AgentAction::ExecuteTool {
             tool_name,
             tool_input,
@@ -126,11 +137,13 @@ impl RAGAgent {
             }
 
             let llm_messages = messages_to_llm(&state.conversation, &system_prompt);
-            let response = self
-                .llm
-                .generate(llm_messages, params)
-                .await
-                .map_err(|e| WorkerError::LlmProvider(e.to_string()))?;
+            let response = tokio::time::timeout(
+                self.request_timeout,
+                self.llm.generate(llm_messages, params),
+            )
+            .await
+            .map_err(|_| WorkerError::LlmTimeout(self.request_timeout.as_secs()))?
+            .map_err(|e| WorkerError::LlmProvider(e.to_string()))?;
 
             state.consume_tokens(response.tokens_processed, response.tokens_generated)?;
 

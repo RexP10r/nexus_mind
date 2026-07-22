@@ -11,7 +11,7 @@ use crate::common::tools::calculator::CalculatorTool;
 use crate::common::tools::registry::ToolRegistry;
 use crate::common::traits::agent::Agent;
 use crate::common::traits::llm::LlmProvider;
-use crate::config::{Config, ProviderType, AgentType};
+use crate::config::{AgentType, Config, ProviderType};
 use crate::error::WorkerError;
 use crate::provider::grpc::GrpcLlmProvider;
 use crate::server::AppState;
@@ -56,7 +56,12 @@ async fn init_agent(
     let agent: Arc<dyn Agent> = match config.agent_type {
         AgentType::RAG => {
             let tool_registry = ToolRegistry::from_tools(vec![Box::new(CalculatorTool)]);
-            Arc::new(RAGAgent::new(llm, tool_registry, config.max_iterations))
+            Arc::new(RAGAgent::new(
+                llm,
+                tool_registry,
+                config.max_iterations,
+                config.request_timeout_secs,
+            ))
         }
     };
     Ok(agent)

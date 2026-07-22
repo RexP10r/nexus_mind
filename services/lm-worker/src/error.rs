@@ -8,6 +8,9 @@ pub enum WorkerError {
     #[error("LLM provider error: {0}")]
     LlmProvider(String),
 
+    #[error("LLM request timed out after {0}s")]
+    LlmTimeout(u64),
+
     #[allow(dead_code)]
     #[error("Agent error: {0}")]
     Agent(String),

@@ -8,7 +8,7 @@ use crate::agent::schema::{extract_llm_response, Action, LlmResponse};
 use crate::agent::state::AgentState;
 use crate::agent::{AgentAction, AgentResult, AgentStep, Message};
 use crate::common::llm_types::messages_to_llm;
-use crate::common::tools::registry::ToolRegistry;
+use crate::common::tools::registry::{InMemoryToolRegistry, ToolRegistry};
 use crate::common::traits::agent::Agent;
 use crate::common::traits::llm::LlmProvider;
 use crate::common::GenerationParams;
@@ -16,7 +16,7 @@ use crate::error::WorkerError;
 
 pub struct RAGAgent {
     llm: Arc<dyn LlmProvider>,
-    tool_registry: ToolRegistry,
+    tool_registry: InMemoryToolRegistry,
     max_iterations: u32,
     request_timeout: Duration,
 }
@@ -24,7 +24,7 @@ pub struct RAGAgent {
 impl RAGAgent {
     pub fn new(
         llm: Arc<dyn LlmProvider>,
-        tool_registry: ToolRegistry,
+        tool_registry: InMemoryToolRegistry,
         max_iterations: u32,
         request_timeout_secs: u64,
     ) -> Self {
@@ -37,7 +37,7 @@ impl RAGAgent {
     }
 
     fn tool_not_found_message(&self, tool_name: &str) -> String {
-        let desc = self.tool_registry.tool_descriptions();
+        let desc = self.tool_registry.descriptions();
         let available = if desc.is_empty() {
             "none".to_string()
         } else {
@@ -155,7 +155,7 @@ impl RAGAgent {
         mut state: AgentState,
         params: &GenerationParams,
     ) -> Result<AgentResult, WorkerError> {
-        let tool_descriptions = self.tool_registry.tool_descriptions();
+        let tool_descriptions = self.tool_registry.descriptions();
         let system_prompt = build_system_prompt(&tool_descriptions);
 
         let max_iterations = self.max_iterations.max(1);

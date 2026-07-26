@@ -8,7 +8,7 @@ mod server;
 
 use crate::agent::rag::RAGAgent;
 use crate::common::tools::calculator::CalculatorTool;
-use crate::common::tools::registry::ToolRegistry;
+use crate::common::tools::registry::InMemoryToolRegistry;
 use crate::common::traits::agent::Agent;
 use crate::common::traits::llm::LlmProvider;
 use crate::config::{AgentType, Config, ProviderType};
@@ -75,7 +75,7 @@ async fn init_agent(
 ) -> Result<Arc<dyn Agent>, WorkerError> {
     let agent: Arc<dyn Agent> = match config.agent_type {
         AgentType::RAG => {
-            let tool_registry = ToolRegistry::from_tools(vec![Box::new(CalculatorTool)]);
+            let tool_registry = InMemoryToolRegistry::from_tools(vec![Box::new(CalculatorTool)]);
             let tool_count = tool_registry.tool_count();
             tracing::info!(
                 agent_type = "rag",

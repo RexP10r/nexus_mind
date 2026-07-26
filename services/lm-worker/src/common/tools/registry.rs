@@ -1,12 +1,16 @@
+use crate::common::traits::tool::Tool;
 use std::collections::HashMap;
 
-use crate::common::traits::tool::Tool;
+pub trait ToolRegistry: Send + Sync {
+    fn execute(&self, name: &str, input: &str) -> Option<String>;
+    fn descriptions(&self) -> String;
+}
 
-pub struct ToolRegistry {
+pub struct InMemoryToolRegistry {
     tools: HashMap<String, Box<dyn Tool>>,
 }
 
-impl ToolRegistry {
+impl InMemoryToolRegistry {
     pub fn new() -> Self {
         Self {
             tools: HashMap::new(),
@@ -25,25 +29,27 @@ impl ToolRegistry {
         self.tools.insert(tool.name().to_string(), tool);
     }
 
-    pub fn execute(&self, name: &str, input: &str) -> Option<String> {
-        self.tools.get(name).map(|tool| tool.execute(input))
-    }
-
-    pub fn tool_descriptions(&self) -> String {
-        self.tools
-            .iter()
-            .map(|(name, tool)| format!("- {}: {}", name, tool.description()))
-            .collect::<Vec<_>>()
-            .join("\n")
-    }
-
     pub fn tool_count(&self) -> usize {
         self.tools.len()
     }
 }
 
-impl Default for ToolRegistry {
+impl Default for InMemoryToolRegistry {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl ToolRegistry for InMemoryToolRegistry {
+    fn execute(&self, name: &str, input: &str) -> Option<String> {
+        self.tools.get(name).map(|tool| tool.execute(input))
+    }
+
+    fn descriptions(&self) -> String {
+        self.tools
+            .iter()
+            .map(|(name, tool)| format!("- {}: {}", name, tool.description()))
+            .collect::<Vec<_>>()
+            .join("\n")
     }
 }

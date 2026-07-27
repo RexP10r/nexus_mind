@@ -1,4 +1,4 @@
-use crate::agent::schema::generate_schema_text;
+use super::schema::generate_schema_text;
 
 pub fn build_system_prompt(tool_descriptions: &str) -> String {
     let schema_text = generate_schema_text();

@@ -43,6 +43,18 @@ impl AgentState {
         }
     }
 
+    pub fn record_thought(&mut self, thought: String) {
+        self.reasoning_steps.push(AgentStep {
+            thought: thought.clone(),
+            action: None,
+            observation: None,
+        });
+        self.conversation.push(Message {
+            role: "assistant".to_string(),
+            content: thought,
+        });
+    }
+
     pub fn add_turn(
         &self,
         thought: String,

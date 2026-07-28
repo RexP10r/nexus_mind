@@ -37,22 +37,17 @@ impl RAGAgent {
 
 #[async_trait]
 impl Agent for RAGAgent {
-    #[tracing::instrument(skip(self, messages, params),
-        fields(message_count = messages.len())
-    )]
     async fn run(
         &self,
         messages: &[Message],
         summary: Option<&str>,
         params: &GenerationParams,
     ) -> Result<AgentResult, WorkerError> {
-        for msg in messages {
-            tracing::info!(
-                role = %msg.role,
-                content = %msg.content,
-                "User message"
-            );
-        }
+        tracing::info!(
+            role = %&messages.last().unwrap().role,
+            content = %&messages.last().unwrap().content,
+            "User message"
+        );
         let state = AgentState::new(messages);
         let tool_handler = ToolHandler::new(&self.tool_registry);
         let agent_loop = AgentLoop::new(

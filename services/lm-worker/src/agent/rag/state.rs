@@ -70,10 +70,10 @@ impl AgentState {
             None => String::new(),
         };
         let content = if action_desc.is_empty() {
-            format!("{}\n\nObservation: {}", thought, observation)
+            format!("Thought: {}\n\nObservation: {}", thought, observation)
         } else {
             format!(
-                "Thought: {}\n{}\nObservation: {}",
+                "Thought: {}\n\n{}\n\nObservation: {}",
                 thought, action_desc, observation
             )
         };

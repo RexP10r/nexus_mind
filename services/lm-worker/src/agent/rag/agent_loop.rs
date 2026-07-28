@@ -32,10 +32,6 @@ impl<'a> AgentLoop<'a> {
         }
     }
 
-    #[tracing::instrument(skip(self, params, state), fields(
-        state_id = %state.id,
-        conversation_len = state.conversation.len(),
-    ))]
     pub(crate) async fn execute(
         &self,
         mut state: AgentState,

@@ -4,9 +4,8 @@ use crate::model::Message;
 
 #[derive(Debug, Deserialize)]
 pub struct ChatRequest {
-    #[serde(default)]
-    pub conversation_id: Option<String>,
-    pub messages: Vec<Message>,
+    pub conversation_id: String,
+    pub message: Message,
     pub temperature: Option<f32>,
     pub max_tokens: Option<u32>,
     pub top_p: Option<f32>,

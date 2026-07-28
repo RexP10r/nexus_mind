@@ -1,5 +1,6 @@
 mod agent;
 mod config;
+mod db;
 mod error;
 mod grpc;
 mod model;
@@ -10,6 +11,7 @@ mod traits;
 
 use crate::agent::rag::RAGAgent;
 use crate::config::{AgentType, Config, ProviderType};
+use crate::db::DbLayer;
 use crate::error::WorkerError;
 use crate::provider::grpc::GrpcLlmProvider;
 use crate::server::AppState;
@@ -102,13 +104,29 @@ async fn main() -> anyhow::Result<(), WorkerError> {
     let config = Config::from_env();
     init_tracing(&config);
 
+    let db = match DbLayer::new(&config).await {
+        Ok(db) => db,
+        Err(e) => {
+            tracing::error!(error = %e, "Database layer initialization failed, shutting down");
+            return Err(e);
+        }
+    };
+
     let llm = init_llm(&config).await?;
+    let llm_for_state = Arc::clone(&llm);
     let agent = init_agent(llm, &config).await?;
 
-    let state = AppState { agent };
+    let http_port = config.http_port;
+
+    let state = AppState {
+        agent,
+        llm: llm_for_state,
+        db: Arc::new(db),
+        config,
+    };
 
     let router = server::build_router(state);
-    let addr = SocketAddr::from(([0, 0, 0, 0], config.http_port));
+    let addr = SocketAddr::from(([0, 0, 0, 0], http_port));
 
     tracing::info!(address = %addr, "HTTP server listening");
     let listener = tokio::net::TcpListener::bind(addr).await?;

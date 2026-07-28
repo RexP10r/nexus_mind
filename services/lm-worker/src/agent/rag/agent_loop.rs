@@ -40,8 +40,9 @@ impl<'a> AgentLoop<'a> {
         &self,
         mut state: AgentState,
         params: &GenerationParams,
+        summary: Option<&str>,
     ) -> Result<AgentResult, WorkerError> {
-        let system_prompt = build_system_prompt(&self.tool_handler.descriptions());
+        let system_prompt = build_system_prompt(&self.tool_handler.descriptions(), summary);
         let max_iterations = self.max_iterations.max(1);
         let mut iteration: u32 = 0;
 

@@ -43,6 +43,7 @@ impl Agent for RAGAgent {
     async fn run(
         &self,
         messages: &[Message],
+        summary: Option<&str>,
         params: &GenerationParams,
     ) -> Result<AgentResult, WorkerError> {
         for msg in messages {
@@ -60,6 +61,6 @@ impl Agent for RAGAgent {
             self.max_iterations,
             self.request_timeout,
         );
-        agent_loop.execute(state, params).await
+        agent_loop.execute(state, params, summary).await
     }
 }

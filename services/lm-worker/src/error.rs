@@ -20,4 +20,7 @@ pub enum WorkerError {
 
     #[error("gRPC transport error: {0}")]
     GrpcTransport(#[from] tonic::transport::Error),
+
+    #[error("Database error: {0}")]
+    Db(String),
 }

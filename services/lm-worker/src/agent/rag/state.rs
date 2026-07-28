@@ -62,9 +62,24 @@ impl AgentState {
         action: Option<AgentAction>,
     ) -> AgentState {
         let mut new_state = self.clone_state();
+        let action_desc = match &action {
+            Some(AgentAction::ExecuteTool {
+                tool_name,
+                tool_input,
+            }) => format!("Action: {}({})", tool_name, tool_input),
+            None => String::new(),
+        };
+        let content = if action_desc.is_empty() {
+            format!("{}\n\nObservation: {}", thought, observation)
+        } else {
+            format!(
+                "Thought: {}\n{}\nObservation: {}",
+                thought, action_desc, observation
+            )
+        };
         new_state.conversation.push(Message {
             role: "assistant".to_string(),
-            content: format!("Observation: {}", observation),
+            content,
         });
         new_state.reasoning_steps.push(AgentStep {
             thought,

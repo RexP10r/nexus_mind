@@ -7,7 +7,7 @@ use std::time::Duration;
 use tower_http::trace::TraceLayer;
 use tracing::Span;
 
-use crate::common::traits::agent::Agent;
+use crate::traits::agent::Agent;
 
 #[derive(Clone)]
 pub struct AppState {

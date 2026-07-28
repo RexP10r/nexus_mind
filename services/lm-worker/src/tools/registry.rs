@@ -1,4 +1,4 @@
-use crate::common::traits::tool::Tool;
+use crate::traits::tool::Tool;
 use std::collections::HashMap;
 
 pub trait ToolRegistry: Send + Sync {

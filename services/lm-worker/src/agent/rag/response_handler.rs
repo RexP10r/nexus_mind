@@ -1,7 +1,7 @@
 use super::schema::{Action, LlmResponse};
 use super::state::AgentState;
 use super::tool_handler::ToolHandler;
-use crate::agent::AgentResult;
+use crate::model::AgentResult;
 
 pub(crate) struct ResponseHandler;
 

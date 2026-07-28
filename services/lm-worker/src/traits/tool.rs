@@ -3,4 +3,3 @@ pub trait Tool: Send + Sync {
     fn description(&self) -> &str;
     fn execute(&self, input: &str) -> String;
 }
-

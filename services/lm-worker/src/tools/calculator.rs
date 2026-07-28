@@ -1,4 +1,4 @@
-use crate::common::traits::tool::Tool;
+use crate::traits::tool::Tool;
 
 pub struct CalculatorTool;
 

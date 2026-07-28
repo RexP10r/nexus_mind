@@ -1,6 +1,6 @@
 use crate::agent::rag::state::AgentState;
-use crate::agent::AgentAction;
-use crate::common::tools::registry::{InMemoryToolRegistry, ToolRegistry};
+use crate::model::AgentAction;
+use crate::tools::registry::{InMemoryToolRegistry, ToolRegistry};
 
 pub(crate) struct ToolHandler<'a> {
     registry: &'a InMemoryToolRegistry,

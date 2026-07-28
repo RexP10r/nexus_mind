@@ -1,7 +1,7 @@
 use uuid::Uuid;
 
-use crate::agent::{AgentAction, AgentStep, Message};
 use crate::error::WorkerError;
+use crate::model::{AgentAction, AgentStep, Message};
 
 #[derive(Debug)]
 pub struct AgentState {

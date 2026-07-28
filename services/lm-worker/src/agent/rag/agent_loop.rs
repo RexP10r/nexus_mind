@@ -6,11 +6,9 @@ use super::response_handler::ResponseHandler;
 use super::schema::extract_llm_response;
 use super::state::AgentState;
 use super::tool_handler::ToolHandler;
-use crate::agent::{AgentResult, Message};
-use crate::common::llm_types::messages_to_llm;
-use crate::common::traits::llm::LlmProvider;
-use crate::common::GenerationParams;
 use crate::error::WorkerError;
+use crate::model::{messages_to_llm, AgentResult, GenerationParams, Message};
+use crate::traits::llm::LlmProvider;
 
 pub(crate) struct AgentLoop<'a> {
     llm: Arc<dyn LlmProvider>,

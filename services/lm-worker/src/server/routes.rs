@@ -2,8 +2,7 @@ use axum::extract::State;
 use axum::http::StatusCode;
 use axum::Json;
 
-use crate::agent::Message;
-use crate::common::GenerationParams;
+use crate::model::{GenerationParams, Message};
 use crate::server::dto::{ChatRequest, ChatResponse, ErrorResponse, HealthResponse};
 use crate::server::AppState;
 

@@ -1,8 +1,6 @@
 use async_trait::async_trait;
 
-use crate::agent::AgentResult;
-use crate::agent::Message;
-use crate::common::GenerationParams;
+use crate::model::{AgentResult, GenerationParams, Message};
 
 #[async_trait]
 pub trait Agent: Send + Sync {

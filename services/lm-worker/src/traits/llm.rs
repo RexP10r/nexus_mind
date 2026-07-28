@@ -1,7 +1,6 @@
 use async_trait::async_trait;
 
-use crate::common::llm_types::{GenerateOutput, HealthStatus, LlmMessage};
-use crate::common::GenerationParams;
+use crate::model::{GenerateOutput, GenerationParams, HealthStatus, LlmMessage};
 
 #[async_trait]
 pub trait LlmProvider: Send + Sync {

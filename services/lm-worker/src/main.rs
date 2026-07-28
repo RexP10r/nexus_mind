@@ -1,20 +1,22 @@
 mod agent;
-mod common;
 mod config;
 mod error;
 mod grpc;
+mod model;
 mod provider;
 mod server;
+mod tools;
+mod traits;
 
 use crate::agent::rag::RAGAgent;
-use crate::common::tools::calculator::CalculatorTool;
-use crate::common::tools::registry::InMemoryToolRegistry;
-use crate::common::traits::agent::Agent;
-use crate::common::traits::llm::LlmProvider;
 use crate::config::{AgentType, Config, ProviderType};
 use crate::error::WorkerError;
 use crate::provider::grpc::GrpcLlmProvider;
 use crate::server::AppState;
+use crate::tools::calculator::CalculatorTool;
+use crate::tools::registry::InMemoryToolRegistry;
+use crate::traits::agent::Agent;
+use crate::traits::llm::LlmProvider;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tracing_subscriber::fmt::format::FmtSpan;

@@ -6,12 +6,11 @@ use async_trait::async_trait;
 use super::agent_loop::AgentLoop;
 use super::state::AgentState;
 use super::tool_handler::ToolHandler;
-use crate::agent::Message;
-use crate::common::tools::registry::InMemoryToolRegistry;
-use crate::common::traits::agent::Agent;
-use crate::common::traits::llm::LlmProvider;
-use crate::common::GenerationParams;
 use crate::error::WorkerError;
+use crate::model::{AgentResult, GenerationParams, Message};
+use crate::tools::registry::InMemoryToolRegistry;
+use crate::traits::agent::Agent;
+use crate::traits::llm::LlmProvider;
 
 pub struct RAGAgent {
     llm: Arc<dyn LlmProvider>,
@@ -45,7 +44,7 @@ impl Agent for RAGAgent {
         &self,
         messages: &[Message],
         params: &GenerationParams,
-    ) -> Result<crate::agent::AgentResult, WorkerError> {
+    ) -> Result<AgentResult, WorkerError> {
         for msg in messages {
             tracing::info!(
                 role = %msg.role,

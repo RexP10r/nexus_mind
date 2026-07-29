@@ -81,3 +81,49 @@ pub fn messages_to_llm(messages: &[Message], system_prompt: &str) -> Vec<LlmMess
 
     llm_msgs
 }
+
+pub fn reasoning_steps_to_llm(steps: &[AgentStep]) -> Vec<LlmMessage> {
+    let mut out = Vec::with_capacity(steps.len() * 2);
+
+    for step in steps {
+        match (&step.action, &step.observation) {
+            (
+                Some(AgentAction::ExecuteTool {
+                    tool_name,
+                    tool_input,
+                }),
+                Some(obs),
+            ) => {
+                out.push(LlmMessage {
+                    role: LlmRole::Assistant,
+                    content: format!(
+                        "Thought: {}\n\nAction: {}({})",
+                        step.thought, tool_name, tool_input
+                    ),
+                });
+                out.push(LlmMessage {
+                    role: LlmRole::User,
+                    content: format!("Observation: {}", obs),
+                });
+            }
+            _ => {
+                out.push(LlmMessage {
+                    role: LlmRole::Assistant,
+                    content: step.thought.clone(),
+                });
+            }
+        }
+    }
+
+    out
+}
+
+pub fn build_llm_context(
+    conversation: &[Message],
+    steps: &[AgentStep],
+    system_prompt: &str,
+) -> Vec<LlmMessage> {
+    let mut msgs = messages_to_llm(conversation, system_prompt);
+    msgs.extend(reasoning_steps_to_llm(steps));
+    msgs
+}

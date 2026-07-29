@@ -45,13 +45,28 @@ impl AgentState {
 
     pub fn record_thought(&mut self, thought: String) {
         self.reasoning_steps.push(AgentStep {
-            thought: thought.clone(),
+            thought,
             action: None,
             observation: None,
         });
+    }
+
+    pub fn record_parse_error(&mut self, raw: &str) {
+        let preview: String = raw.chars().take(200).collect();
+        self.reasoning_steps.push(AgentStep {
+            thought: format!(
+                "[PARSE ERROR] LLM response could not be parsed: {}",
+                preview
+            ),
+            action: None,
+            observation: None,
+        });
+    }
+
+    pub fn add_final_answer(&mut self, answer: String) {
         self.conversation.push(Message {
             role: "assistant".to_string(),
-            content: thought,
+            content: answer,
         });
     }
 
@@ -62,25 +77,6 @@ impl AgentState {
         action: Option<AgentAction>,
     ) -> AgentState {
         let mut new_state = self.clone_state();
-        let action_desc = match &action {
-            Some(AgentAction::ExecuteTool {
-                tool_name,
-                tool_input,
-            }) => format!("Action: {}({})", tool_name, tool_input),
-            None => String::new(),
-        };
-        let content = if action_desc.is_empty() {
-            format!("Thought: {}\n\nObservation: {}", thought, observation)
-        } else {
-            format!(
-                "Thought: {}\n\n{}\n\nObservation: {}",
-                thought, action_desc, observation
-            )
-        };
-        new_state.conversation.push(Message {
-            role: "assistant".to_string(),
-            content,
-        });
         new_state.reasoning_steps.push(AgentStep {
             thought,
             observation: Some(observation),

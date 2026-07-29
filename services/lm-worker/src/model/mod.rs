@@ -9,5 +9,5 @@ pub use message::HealthStatus;
 pub use message::LlmMessage;
 pub use message::LlmRole;
 pub use message::Message;
-pub use message::messages_to_llm;
+pub use message::build_llm_context;
 pub use params::GenerationParams;

@@ -14,6 +14,7 @@ impl ResponseHandler {
         match llm_response {
             LlmResponse::FinalAnswer { answer } => {
                 tracing::info!(answer = %answer, "Agent reached final answer");
+                state.add_final_answer(answer.clone());
                 Some(AgentResult {
                     final_answer: answer,
                     total_tokens: state.tokens_used,

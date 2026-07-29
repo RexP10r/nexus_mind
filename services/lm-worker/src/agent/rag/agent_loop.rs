@@ -7,7 +7,7 @@ use super::schema::extract_llm_response;
 use super::state::AgentState;
 use super::tool_handler::ToolHandler;
 use crate::error::WorkerError;
-use crate::model::{messages_to_llm, AgentResult, GenerationParams, Message};
+use crate::model::{build_llm_context, AgentResult, GenerationParams};
 use crate::traits::llm::LlmProvider;
 
 pub(crate) struct AgentLoop<'a> {
@@ -90,7 +90,7 @@ impl<'a> AgentLoop<'a> {
         system_prompt: &str,
         params: &GenerationParams,
     ) -> Result<String, WorkerError> {
-        let llm_messages = messages_to_llm(&state.conversation, system_prompt);
+        let llm_messages = build_llm_context(&state.conversation, &state.reasoning_steps, system_prompt);
         let llm_start = std::time::Instant::now();
 
         let response = tokio::time::timeout(
@@ -147,12 +147,7 @@ impl<'a> AgentLoop<'a> {
                     raw_preview = %raw,
                     "Failed to parse LLM response as JSON"
                 );
-                state.conversation.push(Message {
-                    role: "user".to_string(),
-                    content:
-                        "Your last response was not valid JSON. Output ONLY valid JSON matching the schema."
-                            .to_string(),
-                });
+                state.record_parse_error(&raw);
                 None
             }
         }

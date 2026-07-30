@@ -52,7 +52,7 @@ impl<'a> ToolHandler<'a> {
                 tool_name,
                 tool_input,
             };
-            *state = state.add_turn(thought, observation, Some(action));
+            state.add_turn(thought, observation, Some(action));
             return;
         }
 
@@ -72,6 +72,6 @@ impl<'a> ToolHandler<'a> {
             tool_name,
             tool_input,
         };
-        *state = state.add_turn(thought, observation, Some(action));
+        state.add_turn(thought, observation, Some(action));
     }
 }

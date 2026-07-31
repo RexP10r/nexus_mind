@@ -1,12 +1,12 @@
 use async_trait::async_trait;
 
-use crate::model::{GenerateOutput, GenerationParams, HealthStatus, LlmMessage};
+use crate::model::{ChatMessage, GenerateOutput, GenerationParams, HealthStatus};
 
 #[async_trait]
 pub trait LlmProvider: Send + Sync {
     async fn generate(
         &self,
-        messages: Vec<LlmMessage>,
+        messages: Vec<ChatMessage>,
         params: &GenerationParams,
     ) -> Result<GenerateOutput, crate::error::WorkerError>;
 

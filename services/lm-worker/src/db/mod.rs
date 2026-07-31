@@ -11,7 +11,7 @@ use self::memory::MemoryStore;
 use self::message_doc::MessageDoc;
 use crate::config::Config;
 use crate::error::WorkerError;
-use crate::model::{GenerationParams, LlmMessage, LlmRole, Message};
+use crate::model::{ChatMessage, ChatRole, GenerationParams, Message};
 
 pub struct DbLayer {
     pub memory: MemoryStore,
@@ -133,12 +133,12 @@ async fn generate_summary(
     messages: &[Message],
 ) -> Result<String, WorkerError> {
     let prompt = build_summarization_prompt(messages);
-    let llm_messages = vec![LlmMessage {
-        role: LlmRole::User,
+    let chat_messages = vec![ChatMessage {
+        role: ChatRole::User,
         content: prompt,
     }];
 
-    llm.generate(llm_messages, &summary_params())
+    llm.generate(chat_messages, &summary_params())
         .await
         .map(|o| o.text)
         .map_err(|e| {

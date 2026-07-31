@@ -3,10 +3,10 @@ use tonic::transport::Channel;
 
 use crate::error::WorkerError;
 use crate::grpc::lm_service::{
-    lm_service_client::LmServiceClient, ChatMessage, GenerateRequest, GenerateResponse,
-    HealthCheckRequest, HealthCheckResponse, MessageRole,
+    lm_service_client::LmServiceClient, ChatMessage as ProtoChatMessage, GenerateRequest,
+    GenerateResponse, HealthCheckRequest, HealthCheckResponse, MessageRole,
 };
-use crate::model::{GenerateOutput, GenerationParams, HealthStatus, LlmMessage, LlmRole};
+use crate::model::{ChatMessage, ChatRole, GenerateOutput, GenerationParams, HealthStatus};
 use crate::traits::llm::LlmProvider;
 
 pub struct GrpcLlmProvider {
@@ -26,13 +26,13 @@ impl GrpcLlmProvider {
         Ok(Self { client })
     }
 
-    fn to_proto_message(msg: LlmMessage) -> ChatMessage {
+    fn to_proto_message(msg: ChatMessage) -> ProtoChatMessage {
         let role = match msg.role {
-            LlmRole::System => MessageRole::RoleSystem,
-            LlmRole::User => MessageRole::RoleUser,
-            LlmRole::Assistant => MessageRole::RoleAssistant,
+            ChatRole::System => MessageRole::RoleSystem,
+            ChatRole::User => MessageRole::RoleUser,
+            ChatRole::Assistant => MessageRole::RoleAssistant,
         };
-        ChatMessage {
+        ProtoChatMessage {
             role: role as i32,
             content: msg.content,
         }
@@ -68,10 +68,10 @@ impl LlmProvider for GrpcLlmProvider {
     ))]
     async fn generate(
         &self,
-        messages: Vec<LlmMessage>,
+        messages: Vec<ChatMessage>,
         params: &GenerationParams,
     ) -> Result<GenerateOutput, WorkerError> {
-        let proto_messages: Vec<ChatMessage> =
+        let proto_messages: Vec<ProtoChatMessage> =
             messages.into_iter().map(Self::to_proto_message).collect();
 
         let req = GenerateRequest {

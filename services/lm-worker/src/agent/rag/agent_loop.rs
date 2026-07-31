@@ -7,7 +7,7 @@ use super::schema::extract_llm_response;
 use super::state::AgentState;
 use super::tool_handler::ToolHandler;
 use crate::error::WorkerError;
-use crate::model::{build_llm_context, AgentResult, GenerationParams};
+use crate::model::{build_chat_context, AgentResult, GenerationParams};
 use crate::traits::llm::LlmProvider;
 
 pub(crate) struct AgentLoop<'a> {
@@ -90,12 +90,12 @@ impl<'a> AgentLoop<'a> {
         system_prompt: &str,
         params: &GenerationParams,
     ) -> Result<String, WorkerError> {
-        let llm_messages = build_llm_context(&state.conversation, &state.reasoning_steps, system_prompt);
+        let chat_messages = build_chat_context(&state.conversation, &state.reasoning_steps, system_prompt);
         let llm_start = std::time::Instant::now();
 
         let response = tokio::time::timeout(
             self.request_timeout,
-            self.llm.generate(llm_messages, params),
+            self.llm.generate(chat_messages, params),
         )
         .await
         .map_err(|_| {

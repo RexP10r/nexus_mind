@@ -1,30 +1,23 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use crate::model::AgentAction;
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(untagged)]
-pub enum LlmResponse {
+pub enum AgentResponse {
     Think {
         thought: String,
         #[serde(skip_serializing_if = "Option::is_none")]
-        next_action: Option<Action>,
+        next_action: Option<AgentAction>,
     },
     FinalAnswer { answer: String },
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(untagged)]
-pub enum Action {
-    ExecuteTool {
-        tool_name: String,
-        tool_input: String,
-    },
-}
-
-pub fn extract_llm_response(raw: &str) -> Result<LlmResponse, String> {
+pub fn extract_llm_response(raw: &str) -> Result<AgentResponse, String> {
     let cleaned = strip_markdown_fences(raw.trim());
 
-    if let Ok(resp) = serde_json::from_str::<LlmResponse>(&cleaned) {
+    if let Ok(resp) = serde_json::from_str::<AgentResponse>(&cleaned) {
         return Ok(resp);
     }
 
@@ -58,7 +51,7 @@ static EXTRACTION_PATTERNS: &[(&str, &str)] = &[
     ("", ""),
 ];
 
-fn extract_json_between(text: &str, prefix: &str, suffix: &str) -> Result<LlmResponse, String> {
+fn extract_json_between(text: &str, prefix: &str, suffix: &str) -> Result<AgentResponse, String> {
     if prefix.is_empty() && suffix.is_empty() {
         return serde_json::from_str(text).map_err(|e| e.to_string());
     }
@@ -70,7 +63,7 @@ fn extract_json_between(text: &str, prefix: &str, suffix: &str) -> Result<LlmRes
 }
 
 pub fn generate_schema_text() -> String {
-    let schema = schemars::schema_for!(LlmResponse);
+    let schema = schemars::schema_for!(AgentResponse);
     serde_json::to_string_pretty(&schema).unwrap_or_default()
 }
 
@@ -83,7 +76,7 @@ mod tests {
         let raw = r#"{"thought": "I need to calculate", "next_action": {"tool_name": "calculate", "tool_input": "2+2"}}"#;
         let resp = extract_llm_response(raw).unwrap();
         match resp {
-            LlmResponse::Think { thought, next_action } => {
+            AgentResponse::Think { thought, next_action } => {
                 assert_eq!(thought, "I need to calculate");
                 assert!(next_action.is_some());
             }
@@ -95,7 +88,7 @@ mod tests {
     fn test_extract_think_without_next_action() {
         let raw = r#"{"thought": "Just thinking without tools"}"#;
         let resp = extract_llm_response(raw).unwrap();
-        assert!(matches!(resp, LlmResponse::Think { .. }));
+        assert!(matches!(resp, AgentResponse::Think { .. }));
     }
 
     #[test]
@@ -103,7 +96,7 @@ mod tests {
         let raw = r#"{"answer": "42"}"#;
         let resp = extract_llm_response(raw).unwrap();
         match resp {
-            LlmResponse::FinalAnswer { answer } => assert_eq!(answer, "42"),
+            AgentResponse::FinalAnswer { answer } => assert_eq!(answer, "42"),
             _ => panic!("expected FinalAnswer"),
         }
     }
@@ -113,7 +106,7 @@ mod tests {
         let raw = "```json\n{\"answer\": \"Paris\"}\n```";
         let resp = extract_llm_response(raw).unwrap();
         match resp {
-            LlmResponse::FinalAnswer { answer } => assert_eq!(answer, "Paris"),
+            AgentResponse::FinalAnswer { answer } => assert_eq!(answer, "Paris"),
             _ => panic!("expected FinalAnswer"),
         }
     }

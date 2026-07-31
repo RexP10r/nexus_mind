@@ -1,3 +1,4 @@
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -15,9 +16,9 @@ pub struct AgentStep {
     pub action: Option<AgentAction>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(untagged)]
 pub enum AgentAction {
-    #[serde(rename = "execute_tool")]
     ExecuteTool {
         tool_name: String,
         tool_input: String,

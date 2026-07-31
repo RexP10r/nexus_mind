@@ -1,18 +1,18 @@
-use super::schema::{Action, LlmResponse};
+use super::schema::AgentResponse;
 use super::state::AgentState;
 use super::tool_handler::ToolHandler;
-use crate::model::AgentResult;
+use crate::model::{AgentAction, AgentResult};
 
 pub(crate) struct ResponseHandler;
 
 impl ResponseHandler {
     pub(crate) fn handle(
         state: &mut AgentState,
-        llm_response: LlmResponse,
+        llm_response: AgentResponse,
         tool_handler: &ToolHandler,
     ) -> Option<AgentResult> {
         match llm_response {
-            LlmResponse::FinalAnswer { answer } => {
+            AgentResponse::FinalAnswer { answer } => {
                 tracing::info!(answer = %answer, "Agent reached final answer");
                 state.add_final_answer(answer.clone());
                 Some(AgentResult {
@@ -21,11 +21,11 @@ impl ResponseHandler {
                     reasoning_steps: state.reasoning_steps.clone(),
                 })
             }
-            LlmResponse::Think {
+            AgentResponse::Think {
                 thought,
                 next_action,
             } => match next_action {
-                Some(Action::ExecuteTool {
+                Some(AgentAction::ExecuteTool {
                     tool_name,
                     tool_input,
                 }) => {

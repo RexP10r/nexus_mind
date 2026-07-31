@@ -1,17 +1,16 @@
+pub mod conversation_doc;
 pub mod history;
 pub mod memory;
-pub mod message_doc;
 
-use mongodb::bson::doc;
 use mongodb::{Client as MongoClient, Collection};
 use redis::aio::MultiplexedConnection;
 
+use self::conversation_doc::create_ttl_index;
 use self::history::HistoryStore;
 use self::memory::MemoryStore;
-use self::message_doc::MessageDoc;
 use crate::config::Config;
 use crate::error::WorkerError;
-use crate::model::{ChatMessage, ChatRole, GenerationParams, Message};
+use crate::model::{ChatMessage, ChatRole, ConversationDoc, GenerationParams, Message};
 
 pub struct DbLayer {
     pub memory: MemoryStore,
@@ -41,7 +40,7 @@ async fn connect_redis(url: &str) -> Result<MultiplexedConnection, WorkerError> 
         })
 }
 
-async fn connect_mongo(uri: &str, db_name: &str) -> Result<Collection<MessageDoc>, WorkerError> {
+async fn connect_mongo(uri: &str, db_name: &str) -> Result<Collection<ConversationDoc>, WorkerError> {
     let client = MongoClient::with_uri_str(uri).await.map_err(|e| {
         tracing::error!(
             uri,
@@ -52,24 +51,17 @@ async fn connect_mongo(uri: &str, db_name: &str) -> Result<Collection<MessageDoc
     })?;
 
     let db = client.database(db_name);
-    let collection: Collection<MessageDoc> = db.collection("messages");
+    let collection: Collection<ConversationDoc> = db.collection("conversations");
 
-    collection
-        .create_index(
-            mongodb::IndexModel::builder()
-                .keys(doc! { "conversation_id": 1, "timestamp": 1 })
-                .build(),
-        )
-        .await
-        .map_err(|e| {
-            tracing::error!(
-                uri,
-                db = db_name,
-                error = %e,
-                "Cannot connect to MongoDB. Start it with:\n  docker run -d --name mongo -p 27017:27017 mongo:7"
-            );
-            WorkerError::Db(format!("MongoDB unavailable at {}", uri))
-        })?;
+    create_ttl_index(&collection).await.map_err(|e| {
+        tracing::error!(
+            uri,
+            db = db_name,
+            error = %e,
+            "Cannot connect to MongoDB. Start it with:\n  docker run -d --name mongo -p 27017:27017 mongo:7"
+        );
+        e
+    })?;
 
     Ok(collection)
 }
@@ -91,9 +83,31 @@ impl DbLayer {
         );
 
         Ok(Self {
-            memory: MemoryStore::new(redis_conn, config.redis_ttl_secs),
+            memory: MemoryStore::new(redis_conn),
             history: HistoryStore::new(collection),
         })
+    }
+
+    pub async fn save_conversation(&self, doc: &ConversationDoc) -> Result<(), WorkerError> {
+        self.history.upsert_conversation(doc).await?;
+        let _ = self.memory.cache_conversation(doc).await;
+        Ok(())
+    }
+
+    pub async fn load_conversation(
+        &self,
+        conversation_id: &str,
+    ) -> Result<Option<ConversationDoc>, WorkerError> {
+        if let Ok(Some(doc)) = self.memory.get_cached_conversation(conversation_id).await {
+            return Ok(Some(doc));
+        }
+
+        if let Some(doc) = self.history.get_conversation(conversation_id).await? {
+            let _ = self.memory.cache_conversation(&doc).await;
+            return Ok(Some(doc));
+        }
+
+        Ok(None)
     }
 }
 
@@ -147,20 +161,6 @@ async fn generate_summary(
         })
 }
 
-async fn fetch_older_messages(
-    history: &HistoryStore,
-    conversation_id: &str,
-    history_max: u32,
-) -> Result<Vec<Message>, WorkerError> {
-    history
-        .get_older_messages(conversation_id, history_max)
-        .await
-        .map_err(|e| {
-            tracing::warn!(error = %e, "Failed to load older messages for summarization");
-            e
-        })
-}
-
 pub async fn update_summary(
     db: &DbLayer,
     llm: &dyn crate::traits::llm::LlmProvider,
@@ -168,14 +168,16 @@ pub async fn update_summary(
     history_max_messages: u32,
     summary_interval: u32,
 ) {
-    let total = match db.history.count_messages(conversation_id).await {
-        Ok(c) => c,
+    let mut doc = match db.load_conversation(conversation_id).await {
+        Ok(Some(d)) => d,
+        Ok(None) => return,
         Err(e) => {
-            tracing::warn!(error = %e, "Failed to count messages for summary check");
+            tracing::warn!(error = %e, "Failed to load conversation for summary check");
             return;
         }
     };
 
+    let total = doc.message_count() as u64;
     if !should_summarize(total, history_max_messages, summary_interval) {
         return;
     }
@@ -189,20 +191,21 @@ pub async fn update_summary(
         "Triggering background summary update"
     );
 
-    let older = match fetch_older_messages(&db.history, conversation_id, history_max_messages).await
-    {
-        Ok(m) if m.is_empty() => return,
-        Ok(m) => m,
-        Err(_) => return,
-    };
+    let older = doc.older_messages(history_max_messages);
+    if older.is_empty() {
+        return;
+    }
 
     let summary = match generate_summary(llm, &older).await {
         Ok(s) => s,
         Err(_) => return,
     };
 
-    if let Err(e) = db.memory.set_summary(conversation_id, &summary).await {
-        tracing::warn!(error = %e, "Failed to save summary to Redis");
+    doc.summary = Some(summary.clone());
+    doc.updated_at = chrono::Utc::now();
+
+    if let Err(e) = db.save_conversation(&doc).await {
+        tracing::warn!(error = %e, "Failed to save updated summary to conversation");
     } else {
         tracing::info!("Background summary updated successfully");
     }

@@ -4,15 +4,14 @@ use axum::Json;
 use std::sync::Arc;
 
 use crate::db::{update_summary, DbLayer};
-use crate::model::{AgentResult, GenerationParams, Message};
+use crate::model::{AgentResult, ConversationDoc, GenerationParams, Message};
 use crate::server::dto::{ChatRequest, ChatResponse, ErrorResponse, HealthResponse};
 use crate::server::AppState;
 
 struct ChatContext {
     conversation_id: String,
-    history: Vec<Message>,
+    conversation_doc: ConversationDoc,
     new_message: Message,
-    summary: Option<String>,
 }
 
 impl ChatRequest {
@@ -26,32 +25,23 @@ impl ChatRequest {
     }
 }
 
-async fn load_summary(db: &DbLayer, conversation_id: &str) -> Option<String> {
-    match db.memory.get_summary(conversation_id).await {
-        Ok(s) => {
-            tracing::info!(has_summary = s.is_some(), "Loaded memory summary");
-            s
+async fn load_conversation(db: &DbLayer, conversation_id: &str) -> ConversationDoc {
+    match db.load_conversation(conversation_id).await {
+        Ok(Some(doc)) => {
+            tracing::info!(
+                conversation_id,
+                timeline_entries = doc.timeline.len(),
+                "Loaded conversation"
+            );
+            doc
+        }
+        Ok(None) => {
+            tracing::info!(conversation_id, "No existing conversation, starting fresh");
+            ConversationDoc::new(conversation_id.to_string())
         }
         Err(e) => {
-            tracing::warn!(error = %e, "Failed to load summary, continuing without");
-            None
-        }
-    }
-}
-
-async fn load_history(
-    db: &DbLayer,
-    conversation_id: &str,
-    max_messages: u32,
-) -> Vec<Message> {
-    match db.history.get_last_n(conversation_id, max_messages).await {
-        Ok(msgs) => {
-            tracing::info!(count = msgs.len(), "Loaded conversation history");
-            msgs
-        }
-        Err(e) => {
-            tracing::warn!(error = %e, "Failed to load history, continuing without");
-            Vec::new()
+            tracing::warn!(error = %e, "Failed to load conversation, starting fresh");
+            ConversationDoc::new(conversation_id.to_string())
         }
     }
 }
@@ -60,21 +50,17 @@ async fn build_chat_context(state: &AppState, req: &ChatRequest) -> ChatContext 
     let conversation_id = req.conversation_id.clone();
     let new_message = req.message.clone();
 
-    let (summary, history) = tokio::join!(
-        load_summary(&state.db, &conversation_id),
-        load_history(&state.db, &conversation_id, state.config.history_max_messages),
-    );
+    let conversation_doc = load_conversation(&state.db, &conversation_id).await;
 
     ChatContext {
         conversation_id,
-        history,
+        conversation_doc,
         new_message,
-        summary,
     }
 }
 
 fn collect_agent_messages(ctx: &ChatContext) -> Vec<Message> {
-    let mut messages = ctx.history.clone();
+    let mut messages = ctx.conversation_doc.to_messages();
     messages.push(ctx.new_message.clone());
     messages
 }
@@ -89,10 +75,22 @@ fn log_request_params(params: &GenerationParams) {
     );
 }
 
-fn spawn_save_history(db: Arc<DbLayer>, conversation_id: String, user_msg: Message, assistant_msg: Message) {
+fn spawn_save_conversation(db: Arc<DbLayer>, conversation_id: String, new_message: Message, agent_result: AgentResult) {
     tokio::spawn(async move {
-        if let Err(e) = db.history.append_messages(&conversation_id, &[user_msg, assistant_msg]).await {
-            tracing::warn!(error = %e, "Failed to save messages to history");
+        let mut doc = match db.load_conversation(&conversation_id).await {
+            Ok(Some(d)) => d,
+            Ok(None) => ConversationDoc::new(conversation_id.clone()),
+            Err(e) => {
+                tracing::warn!(error = %e, "Failed to load conversation for appending, saving fresh");
+                let mut d = ConversationDoc::new(conversation_id.clone());
+                d.append_turn(&new_message, &agent_result);
+                let _ = db.save_conversation(&d).await;
+                return;
+            }
+        };
+        doc.append_turn(&new_message, &agent_result);
+        if let Err(e) = db.save_conversation(&doc).await {
+            tracing::warn!(error = %e, "Failed to save conversation");
         }
     });
 }
@@ -142,16 +140,11 @@ fn handle_agent_result(
                 "Chat completed successfully"
             );
 
-            let assistant_msg = Message {
-                role: "assistant".to_string(),
-                content: agent_result.final_answer.clone(),
-            };
-
-            spawn_save_history(
+            spawn_save_conversation(
                 state.db.clone(),
                 ctx.conversation_id.clone(),
                 ctx.new_message.clone(),
-                assistant_msg,
+                agent_result.clone(),
             );
             spawn_summary_update(state, ctx.conversation_id.clone());
 
@@ -175,7 +168,7 @@ pub async fn chat(
     log_request_params(&params);
 
     let start = std::time::Instant::now();
-    let result = state.agent.run(&messages, ctx.summary.as_deref(), &params).await;
+    let result = state.agent.run(&messages, ctx.conversation_doc.summary.as_deref(), &params).await;
 
     handle_agent_result(&state, &ctx, result, start.elapsed().as_millis())
 }

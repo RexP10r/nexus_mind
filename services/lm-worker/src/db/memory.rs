@@ -20,7 +20,7 @@ impl MemoryStore {
         format!("{}{}", CONVERSATION_KEY_PREFIX, conversation_id)
     }
 
-    #[tracing::instrument(skip(self), fields(conversation_id = %doc.conversation_id))]
+    #[tracing::instrument(skip(self, doc), fields(conversation_id = %doc.conversation_id))]
     pub async fn cache_conversation(&self, doc: &ConversationDoc) -> Result<(), WorkerError> {
         let json = serde_json::to_string(doc)
             .map_err(|e| WorkerError::Db(format!("Serialize error: {}", e)))?;

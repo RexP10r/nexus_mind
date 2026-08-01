@@ -7,7 +7,9 @@ use super::message::Message;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConversationDoc {
     pub conversation_id: String,
+    #[serde(with = "bson::serde_helpers::chrono_datetime_as_bson_datetime")]
     pub created_at: DateTime<Utc>,
+    #[serde(with = "bson::serde_helpers::chrono_datetime_as_bson_datetime")]
     pub updated_at: DateTime<Utc>,
     pub summary: Option<String>,
     pub total_tokens: u32,

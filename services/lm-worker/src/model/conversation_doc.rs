@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-use super::agent::{AgentAction, AgentResult};
+use super::agent::AgentAction;
 use super::message::Message;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -43,31 +43,6 @@ impl ConversationDoc {
             total_tokens: 0,
             timeline: Vec::new(),
         }
-    }
-
-    pub fn append_turn(&mut self, user_msg: &Message, agent_result: &AgentResult) {
-        self.timeline.push(ConversationEntry::Message {
-            role: user_msg.role.clone(),
-            content: user_msg.content.clone(),
-        });
-
-        for step in &agent_result.reasoning_steps {
-            self.timeline.push(ConversationEntry::Step {
-                thought: step.thought.clone(),
-                action: step.action.clone(),
-                observation: step.observation.clone(),
-            });
-        }
-
-        if !agent_result.final_answer.is_empty() {
-            self.timeline.push(ConversationEntry::Message {
-                role: "assistant".to_string(),
-                content: agent_result.final_answer.clone(),
-            });
-        }
-
-        self.total_tokens = self.total_tokens.saturating_add(agent_result.total_tokens);
-        self.updated_at = Utc::now();
     }
 
     pub fn to_messages(&self) -> Vec<Message> {

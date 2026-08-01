@@ -5,15 +5,15 @@ use crate::error::WorkerError;
 use crate::model::ConversationDoc;
 
 const CONVERSATION_KEY_PREFIX: &str = "conv:";
-const CONVERSATION_CACHE_TTL_SECS: u64 = 86400;
 
 pub struct MemoryStore {
     conn: MultiplexedConnection,
+    ttl_secs: u64,
 }
 
 impl MemoryStore {
-    pub fn new(conn: MultiplexedConnection) -> Self {
-        Self { conn }
+    pub fn new(conn: MultiplexedConnection, ttl_secs: u64) -> Self {
+        Self { conn, ttl_secs }
     }
 
     fn conversation_key(conversation_id: &str) -> String {
@@ -29,14 +29,30 @@ impl MemoryStore {
         conn.set::<_, _, ()>(&key, &json)
             .await
             .map_err(|e| WorkerError::Db(format!("Redis set error: {}", e)))?;
-        conn.expire::<_, ()>(&key, CONVERSATION_CACHE_TTL_SECS as i64)
-            .await
-            .map_err(|e| WorkerError::Db(format!("Redis expire error: {}", e)))?;
+        if self.ttl_secs > 0 {
+            conn.expire::<_, ()>(&key, self.ttl_secs as i64)
+                .await
+                .map_err(|e| WorkerError::Db(format!("Redis expire error: {}", e)))?;
+        }
         tracing::info!(
             conversation_id = %doc.conversation_id,
-            ttl_secs = CONVERSATION_CACHE_TTL_SECS,
+            ttl_secs = self.ttl_secs,
             "Cached conversation in Redis"
         );
+        Ok(())
+    }
+
+    #[tracing::instrument(skip(self), fields(conversation_id = %conversation_id))]
+    pub async fn delete_cached_conversation(
+        &self,
+        conversation_id: &str,
+    ) -> Result<(), WorkerError> {
+        let mut conn = self.conn.clone();
+        let key = Self::conversation_key(conversation_id);
+        conn.del::<_, ()>(&key)
+            .await
+            .map_err(|e| WorkerError::Db(format!("Redis del error: {}", e)))?;
+        tracing::info!(conversation_id, "Invalidated Redis cache for conversation");
         Ok(())
     }
 

@@ -25,32 +25,11 @@ impl ChatRequest {
     }
 }
 
-async fn load_conversation(db: &DbLayer, conversation_id: &str) -> ConversationDoc {
-    match db.load_conversation(conversation_id).await {
-        Ok(Some(doc)) => {
-            tracing::info!(
-                conversation_id,
-                timeline_entries = doc.timeline.len(),
-                "Loaded conversation"
-            );
-            doc
-        }
-        Ok(None) => {
-            tracing::info!(conversation_id, "No existing conversation, starting fresh");
-            ConversationDoc::new(conversation_id.to_string())
-        }
-        Err(e) => {
-            tracing::warn!(error = %e, "Failed to load conversation, starting fresh");
-            ConversationDoc::new(conversation_id.to_string())
-        }
-    }
-}
-
 async fn build_chat_context(state: &AppState, req: &ChatRequest) -> ChatContext {
     let conversation_id = req.conversation_id.clone();
     let new_message = req.message.clone();
 
-    let conversation_doc = load_conversation(&state.db, &conversation_id).await;
+    let conversation_doc = state.db.load_conversation(&conversation_id).await;
 
     ChatContext {
         conversation_id,
@@ -77,20 +56,12 @@ fn log_request_params(params: &GenerationParams) {
 
 fn spawn_save_conversation(db: Arc<DbLayer>, conversation_id: String, new_message: Message, agent_result: AgentResult) {
     tokio::spawn(async move {
-        let mut doc = match db.load_conversation(&conversation_id).await {
-            Ok(Some(d)) => d,
-            Ok(None) => ConversationDoc::new(conversation_id.clone()),
-            Err(e) => {
-                tracing::warn!(error = %e, "Failed to load conversation for appending, saving fresh");
-                let mut d = ConversationDoc::new(conversation_id.clone());
-                d.append_turn(&new_message, &agent_result);
-                let _ = db.save_conversation(&d).await;
-                return;
-            }
-        };
-        doc.append_turn(&new_message, &agent_result);
-        if let Err(e) = db.save_conversation(&doc).await {
-            tracing::warn!(error = %e, "Failed to save conversation");
+        if let Err(e) = db.append_turn_to_conversation(&conversation_id, &new_message, &agent_result).await {
+            tracing::error!(
+                error = %e,
+                conversation_id = %conversation_id,
+                "Failed to persist conversation turn — data lost"
+            );
         }
     });
 }

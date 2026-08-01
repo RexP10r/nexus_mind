@@ -52,7 +52,7 @@ pub struct Config {
     #[arg(env = "SUMMARY_INTERVAL", long, default_value_t = 5)]
     pub summary_interval: u32,
 
-    #[arg(env = "REDIS_TTL_SECS", long, default_value_t = 0)]
+    #[arg(env = "REDIS_TTL_SECS", long, default_value_t = 86400)]
     pub redis_ttl_secs: u64,
 }
 

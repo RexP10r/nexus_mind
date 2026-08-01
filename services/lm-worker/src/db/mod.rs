@@ -10,11 +10,14 @@ use self::history::HistoryStore;
 use self::memory::MemoryStore;
 use crate::config::Config;
 use crate::error::WorkerError;
-use crate::model::{ChatMessage, ChatRole, ConversationDoc, GenerationParams, Message};
+use crate::model::{
+    AgentResult, ChatMessage, ChatRole, ConversationDoc, ConversationEntry, GenerationParams,
+    Message,
+};
 
 pub struct DbLayer {
-    pub memory: MemoryStore,
-    pub history: HistoryStore,
+    memory: MemoryStore,
+    history: HistoryStore,
 }
 
 async fn connect_redis(url: &str) -> Result<MultiplexedConnection, WorkerError> {
@@ -40,7 +43,10 @@ async fn connect_redis(url: &str) -> Result<MultiplexedConnection, WorkerError> 
         })
 }
 
-async fn connect_mongo(uri: &str, db_name: &str) -> Result<Collection<ConversationDoc>, WorkerError> {
+async fn connect_mongo(
+    uri: &str,
+    db_name: &str,
+) -> Result<Collection<ConversationDoc>, WorkerError> {
     let client = MongoClient::with_uri_str(uri).await.map_err(|e| {
         tracing::error!(
             uri,
@@ -66,6 +72,35 @@ async fn connect_mongo(uri: &str, db_name: &str) -> Result<Collection<Conversati
     Ok(collection)
 }
 
+fn build_timeline_entries(
+    user_msg: &Message,
+    agent_result: &AgentResult,
+) -> Vec<ConversationEntry> {
+    let mut entries = Vec::new();
+
+    entries.push(ConversationEntry::Message {
+        role: user_msg.role.clone(),
+        content: user_msg.content.clone(),
+    });
+
+    for step in &agent_result.reasoning_steps {
+        entries.push(ConversationEntry::Step {
+            thought: step.thought.clone(),
+            action: step.action.clone(),
+            observation: step.observation.clone(),
+        });
+    }
+
+    if !agent_result.final_answer.is_empty() {
+        entries.push(ConversationEntry::Message {
+            role: "assistant".to_string(),
+            content: agent_result.final_answer.clone(),
+        });
+    }
+
+    entries
+}
+
 impl DbLayer {
     pub async fn new(config: &Config) -> Result<Self, WorkerError> {
         let (redis_result, mongo_result) = tokio::join!(
@@ -83,31 +118,77 @@ impl DbLayer {
         );
 
         Ok(Self {
-            memory: MemoryStore::new(redis_conn),
+            memory: MemoryStore::new(redis_conn, config.redis_ttl_secs),
             history: HistoryStore::new(collection),
         })
     }
 
-    pub async fn save_conversation(&self, doc: &ConversationDoc) -> Result<(), WorkerError> {
-        self.history.upsert_conversation(doc).await?;
-        let _ = self.memory.cache_conversation(doc).await;
+    pub async fn append_turn_to_conversation(
+        &self,
+        conversation_id: &str,
+        user_msg: &Message,
+        agent_result: &AgentResult,
+    ) -> Result<(), WorkerError> {
+        let entries = build_timeline_entries(user_msg, agent_result);
+        let tokens_added = agent_result.total_tokens;
+        let entry_count = entries.len();
+
+        self.history
+            .append_timeline_entries(conversation_id, &entries, tokens_added)
+            .await?;
+
+        if let Err(e) = self.memory.delete_cached_conversation(conversation_id).await {
+            tracing::warn!(error = %e, conversation_id, "Failed to invalidate Redis cache after append");
+        }
+
+        tracing::info!(
+            conversation_id,
+            entry_count,
+            tokens_added,
+            "Atomically appended turn to conversation"
+        );
         Ok(())
     }
 
-    pub async fn load_conversation(
+    pub async fn set_summary(
         &self,
         conversation_id: &str,
-    ) -> Result<Option<ConversationDoc>, WorkerError> {
-        if let Ok(Some(doc)) = self.memory.get_cached_conversation(conversation_id).await {
-            return Ok(Some(doc));
+        summary: &str,
+    ) -> Result<(), WorkerError> {
+        self.history.set_summary(conversation_id, summary).await?;
+
+        if let Err(e) = self.memory.delete_cached_conversation(conversation_id).await {
+            tracing::warn!(error = %e, conversation_id, "Failed to invalidate Redis cache after summary set");
         }
 
-        if let Some(doc) = self.history.get_conversation(conversation_id).await? {
-            let _ = self.memory.cache_conversation(&doc).await;
-            return Ok(Some(doc));
+        Ok(())
+    }
+
+    pub async fn load_conversation(&self, conversation_id: &str) -> ConversationDoc {
+        match self.memory.get_cached_conversation(conversation_id).await {
+            Ok(Some(doc)) => return doc,
+            Ok(None) => {}
+            Err(e) => {
+                tracing::warn!(error = %e, conversation_id, "Redis read failed, falling to MongoDB");
+            }
         }
 
-        Ok(None)
+        match self.history.get_conversation(conversation_id).await {
+            Ok(Some(doc)) => {
+                if let Err(e) = self.memory.cache_conversation(&doc).await {
+                    tracing::error!(error = %e, conversation_id, "Failed to populate Redis cache");
+                }
+                doc
+            }
+            Ok(None) => {
+                tracing::info!(conversation_id, "No existing conversation, starting fresh");
+                ConversationDoc::new(conversation_id.to_string())
+            }
+            Err(e) => {
+                tracing::warn!(error = %e, conversation_id, "MongoDB read failed, starting fresh");
+                ConversationDoc::new(conversation_id.to_string())
+            }
+        }
     }
 }
 
@@ -115,21 +196,26 @@ fn should_summarize(total: u64, history_max: u32, interval: u32) -> bool {
     total > history_max as u64 && (total - history_max as u64) % interval as u64 == 0
 }
 
-fn build_summarization_prompt(messages: &[Message]) -> String {
+fn build_summarization_prompt(messages: &[Message], existing_summary: Option<&str>) -> String {
     let conversation_text: String = messages
         .iter()
         .map(|m| format!("[{}]: {}\n", m.role, m.content))
         .collect();
 
-    format!(
-        r#"You are a conversation summarizer. Create a concise summary of the conversation below.
-Focus on: key facts mentioned, decisions made, user's goals, and important context.
-Output ONLY the summary text, no JSON, no formatting.
+    let previous_summary = match existing_summary {
+        Some(s) if !s.is_empty() => format!("\n## Previous Summary\n{}\n", s),
+        _ => String::new(),
+    };
 
-## Conversation
-{}
-## Summary"#,
-        conversation_text
+    format!(
+        r#"You are a conversation summarizer. Produce a concise, combined summary of the entire conversation history.
+Output ONLY the summary text, no JSON, no formatting.
+{previous_summary}
+## New Messages to Incorporate
+{conversation_text}
+## Combined Summary"#,
+        previous_summary = previous_summary,
+        conversation_text = conversation_text
     )
 }
 
@@ -145,8 +231,9 @@ fn summary_params() -> GenerationParams {
 async fn generate_summary(
     llm: &dyn crate::traits::llm::LlmProvider,
     messages: &[Message],
+    existing_summary: Option<&str>,
 ) -> Result<String, WorkerError> {
-    let prompt = build_summarization_prompt(messages);
+    let prompt = build_summarization_prompt(messages, existing_summary);
     let chat_messages = vec![ChatMessage {
         role: ChatRole::User,
         content: prompt,
@@ -168,45 +255,32 @@ pub async fn update_summary(
     history_max_messages: u32,
     summary_interval: u32,
 ) {
-    let mut doc = match db.load_conversation(conversation_id).await {
-        Ok(Some(d)) => d,
-        Ok(None) => return,
-        Err(e) => {
-            tracing::warn!(error = %e, "Failed to load conversation for summary check");
-            return;
-        }
-    };
+    let doc = db.load_conversation(conversation_id).await;
 
     let total = doc.message_count() as u64;
     if !should_summarize(total, history_max_messages, summary_interval) {
         return;
     }
 
-    tracing::info!(
-        total,
-        trigger = format!(
-            "every {} messages outside window of {}",
-            summary_interval, history_max_messages
-        ),
-        "Triggering background summary update"
-    );
+    let all_older = doc.older_messages(history_max_messages);
+    let batch_size = summary_interval as usize;
+    let new_batch = if all_older.len() <= batch_size {
+        &all_older[..]
+    } else {
+        &all_older[all_older.len() - batch_size..]
+    };
 
-    let older = doc.older_messages(history_max_messages);
-    if older.is_empty() {
+    if new_batch.is_empty() {
         return;
     }
 
-    let summary = match generate_summary(llm, &older).await {
+    let existing_summary = doc.summary.as_deref();
+    let summary = match generate_summary(llm, new_batch, existing_summary).await {
         Ok(s) => s,
         Err(_) => return,
     };
 
-    doc.summary = Some(summary.clone());
-    doc.updated_at = chrono::Utc::now();
-
-    if let Err(e) = db.save_conversation(&doc).await {
-        tracing::warn!(error = %e, "Failed to save updated summary to conversation");
-    } else {
-        tracing::info!("Background summary updated successfully");
+    if let Err(e) = db.set_summary(conversation_id, &summary).await {
+        tracing::warn!(error = %e, "Failed to set summary");
     }
 }

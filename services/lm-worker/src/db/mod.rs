@@ -137,7 +137,11 @@ impl DbLayer {
             .append_timeline_entries(conversation_id, &entries, tokens_added)
             .await?;
 
-        if let Err(e) = self.memory.delete_cached_conversation(conversation_id).await {
+        if let Err(e) = self
+            .memory
+            .delete_cached_conversation(conversation_id)
+            .await
+        {
             tracing::warn!(error = %e, conversation_id, "Failed to invalidate Redis cache after append");
         }
 
@@ -157,7 +161,11 @@ impl DbLayer {
     ) -> Result<(), WorkerError> {
         self.history.set_summary(conversation_id, summary).await?;
 
-        if let Err(e) = self.memory.delete_cached_conversation(conversation_id).await {
+        if let Err(e) = self
+            .memory
+            .delete_cached_conversation(conversation_id)
+            .await
+        {
             tracing::warn!(error = %e, conversation_id, "Failed to invalidate Redis cache after summary set");
         }
 
@@ -188,6 +196,42 @@ impl DbLayer {
                 tracing::warn!(error = %e, conversation_id, "MongoDB read failed, starting fresh");
                 ConversationDoc::new(conversation_id.to_string())
             }
+        }
+    }
+    pub async fn update_summary(
+        &self,
+        llm: &dyn crate::traits::llm::LlmProvider,
+        conversation_id: &str,
+        history_max_messages: u32,
+        summary_interval: u32,
+    ) {
+        let doc = self.load_conversation(conversation_id).await;
+
+        let total = doc.message_count() as u64;
+        if !should_summarize(total, history_max_messages, summary_interval) {
+            return;
+        }
+
+        let all_older = doc.older_messages(history_max_messages);
+        let batch_size = summary_interval as usize;
+        let new_batch = if all_older.len() <= batch_size {
+            &all_older[..]
+        } else {
+            &all_older[all_older.len() - batch_size..]
+        };
+
+        if new_batch.is_empty() {
+            return;
+        }
+
+        let existing_summary = doc.summary.as_deref();
+        let summary = match generate_summary(llm, new_batch, existing_summary).await {
+            Ok(s) => s,
+            Err(_) => return,
+        };
+
+        if let Err(e) = self.set_summary(conversation_id, &summary).await {
+            tracing::warn!(error = %e, "Failed to set summary");
         }
     }
 }
@@ -246,41 +290,4 @@ async fn generate_summary(
             tracing::warn!(error = %e, "LLM summarization failed");
             e
         })
-}
-
-pub async fn update_summary(
-    db: &DbLayer,
-    llm: &dyn crate::traits::llm::LlmProvider,
-    conversation_id: &str,
-    history_max_messages: u32,
-    summary_interval: u32,
-) {
-    let doc = db.load_conversation(conversation_id).await;
-
-    let total = doc.message_count() as u64;
-    if !should_summarize(total, history_max_messages, summary_interval) {
-        return;
-    }
-
-    let all_older = doc.older_messages(history_max_messages);
-    let batch_size = summary_interval as usize;
-    let new_batch = if all_older.len() <= batch_size {
-        &all_older[..]
-    } else {
-        &all_older[all_older.len() - batch_size..]
-    };
-
-    if new_batch.is_empty() {
-        return;
-    }
-
-    let existing_summary = doc.summary.as_deref();
-    let summary = match generate_summary(llm, new_batch, existing_summary).await {
-        Ok(s) => s,
-        Err(_) => return,
-    };
-
-    if let Err(e) = db.set_summary(conversation_id, &summary).await {
-        tracing::warn!(error = %e, "Failed to set summary");
-    }
 }

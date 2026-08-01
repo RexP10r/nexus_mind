@@ -3,7 +3,7 @@ use axum::http::StatusCode;
 use axum::Json;
 use std::sync::Arc;
 
-use crate::db::{update_summary, DbLayer};
+use crate::db::DbLayer;
 use crate::model::{AgentResult, ConversationDoc, GenerationParams, Message};
 use crate::server::dto::{ChatRequest, ChatResponse, ErrorResponse, HealthResponse};
 use crate::server::AppState;
@@ -54,9 +54,17 @@ fn log_request_params(params: &GenerationParams) {
     );
 }
 
-fn spawn_save_conversation(db: Arc<DbLayer>, conversation_id: String, new_message: Message, agent_result: AgentResult) {
+fn spawn_save_conversation(
+    db: Arc<DbLayer>,
+    conversation_id: String,
+    new_message: Message,
+    agent_result: AgentResult,
+) {
     tokio::spawn(async move {
-        if let Err(e) = db.append_turn_to_conversation(&conversation_id, &new_message, &agent_result).await {
+        if let Err(e) = db
+            .append_turn_to_conversation(&conversation_id, &new_message, &agent_result)
+            .await
+        {
             tracing::error!(
                 error = %e,
                 conversation_id = %conversation_id,
@@ -73,11 +81,20 @@ fn spawn_summary_update(state: &AppState, conversation_id: String) {
     let summary_interval = state.config.summary_interval;
 
     tokio::spawn(async move {
-        update_summary(&db, llm.as_ref(), &conversation_id, history_max, summary_interval).await;
+        db.update_summary(
+            llm.as_ref(),
+            &conversation_id,
+            history_max,
+            summary_interval,
+        )
+        .await;
     });
 }
 
-fn success_response(conversation_id: String, answer: String) -> (StatusCode, Json<serde_json::Value>) {
+fn success_response(
+    conversation_id: String,
+    answer: String,
+) -> (StatusCode, Json<serde_json::Value>) {
     let response = ChatResponse {
         conversation_id,
         message: Message {
@@ -85,7 +102,10 @@ fn success_response(conversation_id: String, answer: String) -> (StatusCode, Jso
             content: answer,
         },
     };
-    (StatusCode::OK, Json(serde_json::to_value(&response).unwrap()))
+    (
+        StatusCode::OK,
+        Json(serde_json::to_value(&response).unwrap()),
+    )
 }
 
 fn error_response(error: String) -> (StatusCode, Json<serde_json::Value>) {
@@ -93,7 +113,10 @@ fn error_response(error: String) -> (StatusCode, Json<serde_json::Value>) {
         error,
         status: "error".into(),
     };
-    (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::to_value(&err).unwrap()))
+    (
+        StatusCode::INTERNAL_SERVER_ERROR,
+        Json(serde_json::to_value(&err).unwrap()),
+    )
 }
 
 fn handle_agent_result(
@@ -139,7 +162,10 @@ pub async fn chat(
     log_request_params(&params);
 
     let start = std::time::Instant::now();
-    let result = state.agent.run(&messages, ctx.conversation_doc.summary.as_deref(), &params).await;
+    let result = state
+        .agent
+        .run(&messages, ctx.conversation_doc.summary.as_deref(), &params)
+        .await;
 
     handle_agent_result(&state, &ctx, result, start.elapsed().as_millis())
 }

@@ -4,13 +4,14 @@ use axum::Json;
 use std::sync::Arc;
 
 use crate::db::DbLayer;
-use crate::model::{AgentResult, ConversationDoc, GenerationParams, Message};
+use crate::model::{AgentResult, GenerationParams, Message};
 use crate::server::dto::{ChatRequest, ChatResponse, ErrorResponse, HealthResponse};
 use crate::server::AppState;
 
 struct ChatContext {
     conversation_id: String,
-    conversation_doc: ConversationDoc,
+    messages: Vec<Message>,
+    summary: Option<String>,
     new_message: Message,
 }
 
@@ -29,17 +30,19 @@ async fn build_chat_context(state: &AppState, req: &ChatRequest) -> ChatContext 
     let conversation_id = req.conversation_id.clone();
     let new_message = req.message.clone();
 
-    let conversation_doc = state.db.load_conversation(&conversation_id).await;
+    let messages = state.db.get_messages(&conversation_id).await;
+    let summary = state.db.get_summary_text(&conversation_id).await;
 
     ChatContext {
         conversation_id,
-        conversation_doc,
+        messages,
+        summary,
         new_message,
     }
 }
 
 fn collect_agent_messages(ctx: &ChatContext) -> Vec<Message> {
-    let mut messages = ctx.conversation_doc.to_messages();
+    let mut messages = ctx.messages.clone();
     messages.push(ctx.new_message.clone());
     messages
 }
@@ -164,7 +167,7 @@ pub async fn chat(
     let start = std::time::Instant::now();
     let result = state
         .agent
-        .run(&messages, ctx.conversation_doc.summary.as_deref(), &params)
+        .run(&messages, ctx.summary.as_deref(), &params)
         .await;
 
     handle_agent_result(&state, &ctx, result, start.elapsed().as_millis())

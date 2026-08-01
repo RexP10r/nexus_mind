@@ -1,5 +1,6 @@
-use mongodb::bson::{doc, Bson};
+use mongodb::bson::{doc, Bson, Document};
 use mongodb::Collection;
+use futures_util::TryStreamExt;
 
 use crate::error::WorkerError;
 use crate::model::{ConversationDoc, ConversationEntry};
@@ -95,5 +96,63 @@ impl HistoryStore {
             "Loaded conversation from Mongo"
         );
         Ok(result)
+    }
+
+    #[tracing::instrument(skip(self), fields(conversation_id = %conversation_id))]
+    pub async fn get_message_count(
+        &self,
+        conversation_id: &str,
+    ) -> Result<u64, WorkerError> {
+        let pipeline = vec![
+            doc! { "$match": { "conversation_id": conversation_id } },
+            doc! { "$project": {
+                "message_count": {
+                    "$size": {
+                        "$filter": {
+                            "input": "$timeline",
+                            "as": "e",
+                            "cond": { "$eq": ["$$e.type", "message"] }
+                        }
+                    }
+                }
+            }},
+        ];
+
+        let mut cursor = self
+            .collection
+            .clone_with_type::<Document>()
+            .aggregate(pipeline)
+            .await
+            .map_err(|e| WorkerError::Db(format!("Mongo aggregate error: {}", e)))?;
+
+        let count = cursor
+            .try_next()
+            .await
+            .map_err(|e| WorkerError::Db(format!("Mongo cursor error: {}", e)))?
+            .and_then(|d| d.get_i64("message_count").ok())
+            .unwrap_or(0) as u64;
+
+        tracing::info!(conversation_id, count, "Retrieved message count");
+        Ok(count)
+    }
+
+    #[tracing::instrument(skip(self), fields(conversation_id = %conversation_id))]
+    pub async fn get_summary_field(
+        &self,
+        conversation_id: &str,
+    ) -> Result<Option<String>, WorkerError> {
+        let filter = doc! { "conversation_id": conversation_id };
+        let projection = doc! { "summary": 1 };
+
+        let result: Option<Document> = self
+            .collection
+            .clone_with_type::<Document>()
+            .find_one(filter)
+            .projection(projection)
+            .await
+            .map_err(|e| WorkerError::Db(format!("Mongo find error: {}", e)))?;
+
+        let summary = result.and_then(|d| d.get_str("summary").ok().map(|s| s.to_string()));
+        Ok(summary)
     }
 }

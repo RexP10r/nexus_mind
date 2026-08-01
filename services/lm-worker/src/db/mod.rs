@@ -15,6 +15,19 @@ use crate::model::{
     Message,
 };
 
+fn timeline_to_messages(timeline: &[ConversationEntry]) -> Vec<Message> {
+    timeline
+        .iter()
+        .filter_map(|entry| match entry {
+            ConversationEntry::Message { role, content } => Some(Message {
+                role: role.clone(),
+                content: content.clone(),
+            }),
+            _ => None,
+        })
+        .collect()
+}
+
 pub struct DbLayer {
     memory: MemoryStore,
     history: HistoryStore,
@@ -172,9 +185,19 @@ impl DbLayer {
         Ok(())
     }
 
-    pub async fn load_conversation(&self, conversation_id: &str) -> ConversationDoc {
+    pub async fn get_message_count(&self, conversation_id: &str) -> u32 {
+        match self.history.get_message_count(conversation_id).await {
+            Ok(count) => count as u32,
+            Err(e) => {
+                tracing::warn!(error = %e, conversation_id, "Failed to get message count, assuming 0");
+                0
+            }
+        }
+    }
+
+    pub async fn get_messages(&self, conversation_id: &str) -> Vec<Message> {
         match self.memory.get_cached_conversation(conversation_id).await {
-            Ok(Some(doc)) => return doc,
+            Ok(Some(doc)) => return timeline_to_messages(&doc.timeline),
             Ok(None) => {}
             Err(e) => {
                 tracing::warn!(error = %e, conversation_id, "Redis read failed, falling to MongoDB");
@@ -186,18 +209,29 @@ impl DbLayer {
                 if let Err(e) = self.memory.cache_conversation(&doc).await {
                     tracing::error!(error = %e, conversation_id, "Failed to populate Redis cache");
                 }
-                doc
+                timeline_to_messages(&doc.timeline)
             }
             Ok(None) => {
                 tracing::info!(conversation_id, "No existing conversation, starting fresh");
-                ConversationDoc::new(conversation_id.to_string())
+                Vec::new()
             }
             Err(e) => {
-                tracing::warn!(error = %e, conversation_id, "MongoDB read failed, starting fresh");
-                ConversationDoc::new(conversation_id.to_string())
+                tracing::warn!(error = %e, conversation_id, "MongoDB read failed");
+                Vec::new()
             }
         }
     }
+
+    pub async fn get_summary_text(&self, conversation_id: &str) -> Option<String> {
+        match self.history.get_summary_field(conversation_id).await {
+            Ok(summary) => summary,
+            Err(e) => {
+                tracing::warn!(error = %e, conversation_id, "Failed to get summary");
+                None
+            }
+        }
+    }
+
     pub async fn update_summary(
         &self,
         llm: &dyn crate::traits::llm::LlmProvider,
@@ -205,27 +239,33 @@ impl DbLayer {
         history_max_messages: u32,
         summary_interval: u32,
     ) {
-        let doc = self.load_conversation(conversation_id).await;
-
-        let total = doc.message_count() as u64;
+        let total = self.get_message_count(conversation_id).await as u64;
         if !should_summarize(total, history_max_messages, summary_interval) {
             return;
         }
 
-        let all_older = doc.older_messages(history_max_messages);
+        let older = {
+            let messages = self.get_messages(conversation_id).await;
+            let keep = history_max_messages as usize;
+            if messages.len() <= keep {
+                return;
+            }
+            messages[..messages.len() - keep].to_vec()
+        };
+
         let batch_size = summary_interval as usize;
-        let new_batch = if all_older.len() <= batch_size {
-            &all_older[..]
+        let new_batch: &[Message] = if older.len() <= batch_size {
+            &older[..]
         } else {
-            &all_older[all_older.len() - batch_size..]
+            &older[older.len() - batch_size..]
         };
 
         if new_batch.is_empty() {
             return;
         }
 
-        let existing_summary = doc.summary.as_deref();
-        let summary = match generate_summary(llm, new_batch, existing_summary).await {
+        let existing_summary = self.get_summary_text(conversation_id).await;
+        let summary = match generate_summary(llm, new_batch, existing_summary.as_deref()).await {
             Ok(s) => s,
             Err(_) => return,
         };

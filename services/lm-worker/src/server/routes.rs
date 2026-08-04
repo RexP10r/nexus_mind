@@ -131,6 +131,7 @@ fn handle_agent_result(
                     summary_interval,
                 )
                 .await;
+                db.refresh_cache(&conversation_id).await;
             });
 
             success_response(ctx.conversation_id.to_string(), agent_result.final_answer)

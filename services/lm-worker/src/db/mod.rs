@@ -165,6 +165,24 @@ impl DbLayer {
         tracing::info!(conversation_id, "Deleted from cache");
     }
 
+    pub async fn refresh_cache(&self, conversation_id: &str) {
+        match self.conversation.get_conversation(conversation_id).await {
+            Ok(Some(doc)) => {
+                if let Err(e) = self.cache.cache_conversation(&doc).await {
+                    tracing::error!(error = %e, conversation_id, "Failed to refresh Redis cache");
+                }
+            }
+            Ok(None) => {}
+            Err(e) => {
+                tracing::warn!(
+                    error = %e,
+                    conversation_id,
+                    "Failed to read from MongoDB for cache refresh"
+                );
+            }
+        }
+    }
+
     pub async fn set_summary(
         &self,
         conversation_id: &str,

@@ -1,13 +1,13 @@
+pub mod cache;
+pub mod conversation;
 pub mod conversation_doc;
-pub mod history;
-pub mod memory;
 
 use mongodb::{Client as MongoClient, Collection};
 use redis::aio::MultiplexedConnection;
 
+use self::cache::CacheStore;
+use self::conversation::ConversationStore;
 use self::conversation_doc::create_ttl_index;
-use self::history::HistoryStore;
-use self::memory::MemoryStore;
 use crate::config::Config;
 use crate::error::WorkerError;
 use crate::model::{
@@ -29,8 +29,8 @@ fn timeline_to_messages(timeline: &[ConversationEntry]) -> Vec<Message> {
 }
 
 pub struct DbLayer {
-    memory: MemoryStore,
-    history: HistoryStore,
+    cache: CacheStore,
+    conversation: ConversationStore,
 }
 
 async fn connect_redis(url: &str) -> Result<MultiplexedConnection, WorkerError> {
@@ -131,8 +131,8 @@ impl DbLayer {
         );
 
         Ok(Self {
-            memory: MemoryStore::new(redis_conn, config.redis_ttl_secs),
-            history: HistoryStore::new(collection),
+            cache: CacheStore::new(redis_conn, config.redis_ttl_secs),
+            conversation: ConversationStore::new(collection),
         })
     }
 
@@ -146,7 +146,7 @@ impl DbLayer {
         let tokens_added = agent_result.total_tokens;
         let entry_count = entries.len();
 
-        self.history
+        self.conversation
             .append_timeline_entries(conversation_id, &entries, tokens_added)
             .await?;
 
@@ -159,7 +159,7 @@ impl DbLayer {
         Ok(())
     }
     pub async fn delete_cached_conversation(&self, conversation_id: &str) {
-        if let Err(e) = self.memory.delete_conversation(conversation_id).await {
+        if let Err(e) = self.cache.delete_conversation(conversation_id).await {
             tracing::error!(error = %e, conversation_id, "Failed to delete conversation from cache");
         };
         tracing::info!(conversation_id, "Deleted from cache");
@@ -170,13 +170,13 @@ impl DbLayer {
         conversation_id: &str,
         summary: &str,
     ) -> Result<(), WorkerError> {
-        self.history.set_summary(conversation_id, summary).await?;
+        self.conversation.set_summary(conversation_id, summary).await?;
 
         Ok(())
     }
 
     pub async fn get_message_count(&self, conversation_id: &str) -> u32 {
-        match self.history.get_message_count(conversation_id).await {
+        match self.conversation.get_message_count(conversation_id).await {
             Ok(count) => count as u32,
             Err(e) => {
                 tracing::warn!(error = %e, conversation_id, "Failed to get message count, assuming 0");
@@ -186,7 +186,7 @@ impl DbLayer {
     }
 
     pub async fn get_messages(&self, conversation_id: &str) -> Vec<Message> {
-        match self.memory.get_cached_conversation(conversation_id).await {
+        match self.cache.get_cached_conversation(conversation_id).await {
             Ok(Some(doc)) => return timeline_to_messages(&doc.timeline),
             Ok(None) => {}
             Err(e) => {
@@ -194,9 +194,9 @@ impl DbLayer {
             }
         }
 
-        match self.history.get_conversation(conversation_id).await {
+        match self.conversation.get_conversation(conversation_id).await {
             Ok(Some(doc)) => {
-                if let Err(e) = self.memory.cache_conversation(&doc).await {
+                if let Err(e) = self.cache.cache_conversation(&doc).await {
                     tracing::error!(error = %e, conversation_id, "Failed to populate Redis cache");
                 }
                 timeline_to_messages(&doc.timeline)
@@ -213,7 +213,7 @@ impl DbLayer {
     }
 
     pub async fn get_summary_text(&self, conversation_id: &str) -> Option<String> {
-        match self.history.get_summary_field(conversation_id).await {
+        match self.conversation.get_summary_field(conversation_id).await {
             Ok(summary) => summary,
             Err(e) => {
                 tracing::warn!(error = %e, conversation_id, "Failed to get summary");

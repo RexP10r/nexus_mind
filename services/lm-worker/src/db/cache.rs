@@ -6,12 +6,12 @@ use crate::model::ConversationDoc;
 
 const CONVERSATION_KEY_PREFIX: &str = "conv:";
 
-pub struct MemoryStore {
+pub struct CacheStore {
     conn: MultiplexedConnection,
     ttl_secs: u64,
 }
 
-impl MemoryStore {
+impl CacheStore {
     pub fn new(conn: MultiplexedConnection, ttl_secs: u64) -> Self {
         Self { conn, ttl_secs }
     }

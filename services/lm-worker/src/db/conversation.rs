@@ -5,7 +5,7 @@ use futures_util::TryStreamExt;
 use crate::error::WorkerError;
 use crate::model::{ConversationDoc, ConversationEntry};
 
-pub struct HistoryStore {
+pub struct ConversationStore {
     collection: Collection<ConversationDoc>,
 }
 
@@ -19,7 +19,7 @@ fn bson_vec(entries: &[ConversationEntry]) -> Result<Vec<Bson>, WorkerError> {
         .collect()
 }
 
-impl HistoryStore {
+impl ConversationStore {
     pub fn new(collection: Collection<ConversationDoc>) -> Self {
         Self { collection }
     }

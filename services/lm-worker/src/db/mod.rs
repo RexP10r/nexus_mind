@@ -194,13 +194,12 @@ impl DbLayer {
             }
         }
 
+        self.get_messages_from_conversation(conversation_id).await
+    }
+
+    pub async fn get_messages_from_conversation(&self, conversation_id: &str) -> Vec<Message> {
         match self.conversation.get_conversation(conversation_id).await {
-            Ok(Some(doc)) => {
-                if let Err(e) = self.cache.cache_conversation(&doc).await {
-                    tracing::error!(error = %e, conversation_id, "Failed to populate Redis cache");
-                }
-                timeline_to_messages(&doc.timeline)
-            }
+            Ok(Some(doc)) => timeline_to_messages(&doc.timeline),
             Ok(None) => {
                 tracing::info!(conversation_id, "No existing conversation, starting fresh");
                 Vec::new()
@@ -235,7 +234,7 @@ impl DbLayer {
         }
 
         let older = {
-            let messages = self.get_messages(conversation_id).await;
+            let messages = self.get_messages_from_conversation(conversation_id).await;
             let keep = history_max_messages as usize;
             if messages.len() <= keep {
                 return;

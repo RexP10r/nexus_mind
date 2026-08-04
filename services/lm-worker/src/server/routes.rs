@@ -3,7 +3,6 @@ use axum::http::StatusCode;
 use axum::Json;
 use std::sync::Arc;
 
-use crate::db::DbLayer;
 use crate::model::{AgentResult, GenerationParams, Message};
 use crate::server::dto::{ChatRequest, ChatResponse, ErrorResponse, HealthResponse};
 use crate::server::AppState;

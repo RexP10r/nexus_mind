@@ -263,7 +263,6 @@ impl DbLayer {
         if let Err(e) = self.set_summary(conversation_id, &summary).await {
             tracing::warn!(error = %e, "Failed to set summary");
         }
-        self.delete_cached_conversation(conversation_id).await;
 
     }
 }

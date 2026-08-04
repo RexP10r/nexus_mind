@@ -57,46 +57,9 @@ fn log_request_params(params: &GenerationParams) {
     );
 }
 
-fn spawn_save_conversation(
-    db: Arc<DbLayer>,
-    conversation_id: Arc<String>,
-    new_message: Message,
-    agent_result: AgentResult,
-) {
-    tokio::spawn(async move {
-        if let Err(e) = db
-            .append_turn_to_conversation(&conversation_id, &new_message, &agent_result)
-            .await
-        {
-            tracing::error!(
-                error = %e,
-                conversation_id = %conversation_id,
-                "Failed to persist conversation turn — data lost"
-            );
-        }
-    });
-}
-
 fn spawn_conversation_deletion<'a>(db: Arc<DbLayer>, conversation_id: Arc<String>) {
     tokio::spawn(async move {
         db.delete_cached_conversation(&conversation_id).await;
-    });
-}
-
-fn spawn_summary_update(state: &AppState, conversation_id: Arc<String>) {
-    let db = state.db.clone();
-    let llm = state.llm.clone();
-    let history_max = state.config.history_max_messages;
-    let summary_interval = state.config.summary_interval;
-
-    tokio::spawn(async move {
-        db.update_summary(
-            llm.as_ref(),
-            &conversation_id,
-            history_max,
-            summary_interval,
-        )
-        .await;
     });
 }
 
@@ -144,13 +107,34 @@ fn handle_agent_result(
             );
 
             spawn_conversation_deletion(state.db.clone(), ctx.conversation_id.clone());
-            spawn_save_conversation(
-                state.db.clone(),
-                ctx.conversation_id.clone(),
-                ctx.new_message.clone(),
-                agent_result.clone(),
-            );
-            spawn_summary_update(state, ctx.conversation_id.clone());
+
+            let db = state.db.clone();
+            let llm = state.llm.clone();
+            let history_max = state.config.history_max_messages;
+            let summary_interval = state.config.summary_interval;
+            let conversation_id = ctx.conversation_id.clone();
+            let new_message = ctx.new_message.clone();
+            let agent_result_clone = agent_result.clone();
+            tokio::spawn(async move {
+                if let Err(e) = db
+                    .append_turn_to_conversation(&conversation_id, &new_message, &agent_result_clone)
+                    .await
+                {
+                    tracing::error!(
+                        error = %e,
+                        conversation_id = %conversation_id,
+                        "Failed to persist conversation turn — data lost"
+                    );
+                    return;
+                }
+                db.update_summary(
+                    llm.as_ref(),
+                    &conversation_id,
+                    history_max,
+                    summary_interval,
+                )
+                .await;
+            });
 
             success_response(ctx.conversation_id.to_string(), agent_result.final_answer)
         }

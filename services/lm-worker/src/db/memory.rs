@@ -43,10 +43,7 @@ impl MemoryStore {
     }
 
     #[tracing::instrument(skip(self), fields(conversation_id = %conversation_id))]
-    pub async fn delete_cached_conversation(
-        &self,
-        conversation_id: &str,
-    ) -> Result<(), WorkerError> {
+    pub async fn delete_conversation(&self, conversation_id: &str) -> Result<(), WorkerError> {
         let mut conn = self.conn.clone();
         let key = Self::conversation_key(conversation_id);
         conn.del::<_, ()>(&key)

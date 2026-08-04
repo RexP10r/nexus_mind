@@ -9,7 +9,7 @@ use crate::server::dto::{ChatRequest, ChatResponse, ErrorResponse, HealthRespons
 use crate::server::AppState;
 
 struct ChatContext {
-    conversation_id: String,
+    conversation_id: Arc<String>,
     messages: Vec<Message>,
     summary: Option<String>,
     new_message: Message,
@@ -27,7 +27,7 @@ impl ChatRequest {
 }
 
 async fn build_chat_context(state: &AppState, req: &ChatRequest) -> ChatContext {
-    let conversation_id = req.conversation_id.clone();
+    let conversation_id = Arc::new(req.conversation_id.clone());
     let new_message = req.message.clone();
 
     let messages = state.db.get_messages(&conversation_id).await;
@@ -59,7 +59,7 @@ fn log_request_params(params: &GenerationParams) {
 
 fn spawn_save_conversation(
     db: Arc<DbLayer>,
-    conversation_id: String,
+    conversation_id: Arc<String>,
     new_message: Message,
     agent_result: AgentResult,
 ) {
@@ -77,7 +77,13 @@ fn spawn_save_conversation(
     });
 }
 
-fn spawn_summary_update(state: &AppState, conversation_id: String) {
+fn spawn_conversation_deletion<'a>(db: Arc<DbLayer>, conversation_id: Arc<String>) {
+    tokio::spawn(async move {
+        db.delete_cached_conversation(&conversation_id).await;
+    });
+}
+
+fn spawn_summary_update(state: &AppState, conversation_id: Arc<String>) {
     let db = state.db.clone();
     let llm = state.llm.clone();
     let history_max = state.config.history_max_messages;
@@ -137,6 +143,7 @@ fn handle_agent_result(
                 "Chat completed successfully"
             );
 
+            spawn_conversation_deletion(state.db.clone(), ctx.conversation_id.clone());
             spawn_save_conversation(
                 state.db.clone(),
                 ctx.conversation_id.clone(),
@@ -145,7 +152,7 @@ fn handle_agent_result(
             );
             spawn_summary_update(state, ctx.conversation_id.clone());
 
-            success_response(ctx.conversation_id.clone(), agent_result.final_answer)
+            success_response(ctx.conversation_id.to_string(), agent_result.final_answer)
         }
         Err(e) => {
             tracing::error!(error = %e, elapsed_ms, "Chat request failed");

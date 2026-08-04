@@ -150,14 +150,6 @@ impl DbLayer {
             .append_timeline_entries(conversation_id, &entries, tokens_added)
             .await?;
 
-        if let Err(e) = self
-            .memory
-            .delete_cached_conversation(conversation_id)
-            .await
-        {
-            tracing::warn!(error = %e, conversation_id, "Failed to invalidate Redis cache after append");
-        }
-
         tracing::info!(
             conversation_id,
             entry_count,
@@ -166,6 +158,12 @@ impl DbLayer {
         );
         Ok(())
     }
+    pub async fn delete_cached_conversation(&self, conversation_id: &str) {
+        if let Err(e) = self.memory.delete_conversation(conversation_id).await {
+            tracing::error!(error = %e, conversation_id, "Failed to delete conversation from cache");
+        };
+        tracing::info!(conversation_id, "Deleted from cache");
+    }
 
     pub async fn set_summary(
         &self,
@@ -173,14 +171,6 @@ impl DbLayer {
         summary: &str,
     ) -> Result<(), WorkerError> {
         self.history.set_summary(conversation_id, summary).await?;
-
-        if let Err(e) = self
-            .memory
-            .delete_cached_conversation(conversation_id)
-            .await
-        {
-            tracing::warn!(error = %e, conversation_id, "Failed to invalidate Redis cache after summary set");
-        }
 
         Ok(())
     }
@@ -273,6 +263,8 @@ impl DbLayer {
         if let Err(e) = self.set_summary(conversation_id, &summary).await {
             tracing::warn!(error = %e, "Failed to set summary");
         }
+        self.delete_cached_conversation(conversation_id).await;
+
     }
 }
 

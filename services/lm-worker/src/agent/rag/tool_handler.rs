@@ -60,7 +60,7 @@ impl<'a> ToolHandler<'a> {
         let observation = self.execute(&tool_name, &tool_input);
         let elapsed_ms = start.elapsed().as_millis();
 
-        tracing::info!(
+        tracing::debug!(
             tool_name = %tool_name,
             tool_input = %tool_input,
             observation = %observation,

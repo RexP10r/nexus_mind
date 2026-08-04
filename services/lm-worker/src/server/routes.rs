@@ -46,16 +46,6 @@ fn collect_agent_messages(ctx: &ChatContext) -> Vec<Message> {
     messages
 }
 
-fn log_request_params(params: &GenerationParams) {
-    tracing::info!(
-        temperature = format!("{:.3}", params.temperature),
-        max_tokens = params.max_tokens,
-        top_p = format!("{:.3}", params.top_p),
-        top_k = params.top_k,
-        "Processing chat request"
-    );
-}
-
 fn success_response(
     conversation_id: String,
     answer: String,
@@ -151,7 +141,6 @@ pub async fn chat(
     let ctx = build_chat_context(&state, &req).await;
     let messages = collect_agent_messages(&ctx);
     let params = req.to_generation_params(GenerationParams::default());
-    log_request_params(&params);
 
     let start = std::time::Instant::now();
     let result = state

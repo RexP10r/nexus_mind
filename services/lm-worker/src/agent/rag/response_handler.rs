@@ -13,7 +13,7 @@ impl ResponseHandler {
     ) -> Option<AgentResult> {
         match llm_response {
             AgentResponse::FinalAnswer { answer } => {
-                tracing::info!(answer = %answer, "Agent reached final answer");
+                tracing::debug!(answer = %answer, "Agent reached final answer");
                 state.add_final_answer(answer.clone());
                 Some(AgentResult {
                     final_answer: answer,
@@ -29,7 +29,7 @@ impl ResponseHandler {
                     tool_name,
                     tool_input,
                 }) => {
-                    tracing::info!(
+                    tracing::debug!(
                         thought = %thought,
                         tool_name = %tool_name,
                         "Agent decided to use tool"
@@ -38,7 +38,7 @@ impl ResponseHandler {
                     None
                 }
                 None => {
-                    tracing::info!(
+                    tracing::debug!(
                         thought = %thought,
                         "Agent thinking without tool action"
                     );

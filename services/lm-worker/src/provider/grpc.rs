@@ -82,28 +82,14 @@ impl LlmProvider for GrpcLlmProvider {
             top_k: params.top_k,
         };
 
-        let start = std::time::Instant::now();
         let mut client = self.client.clone();
         let result = client.generate(req).await;
-        let elapsed_ms = start.elapsed().as_millis();
 
-        match &result {
-            Ok(resp) => {
-                let inner = resp.get_ref();
-                tracing::info!(
-                    tokens_processed = inner.tokens_processed,
-                    tokens_generated = inner.tokens_generated,
-                    elapsed_ms,
-                    "gRPC generate completed"
-                );
-            }
-            Err(status) => {
-                tracing::error!(
-                    grpc_status = %status,
-                    elapsed_ms,
-                    "gRPC generate failed"
-                );
-            }
+        if let Err(status) = &result {
+            tracing::error!(
+                grpc_status = %status,
+                "gRPC generate failed"
+            );
         }
 
         result

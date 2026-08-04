@@ -23,17 +23,9 @@ pub fn build_router(state: AppState) -> axum::Router {
                 uri = %request.uri(),
             )
         })
-        .on_request(|_request: &axum::http::Request<axum::body::Body>, _span: &Span| {
-            tracing::info!("request started");
-        })
+        .on_request(|_: &axum::http::Request<axum::body::Body>, _: &Span| {})
         .on_response(
-            |response: &axum::http::Response<axum::body::Body>, latency: Duration, _span: &Span| {
-                tracing::info!(
-                    status = response.status().as_u16(),
-                    latency_ms = latency.as_millis(),
-                    "request completed"
-                );
-            },
+            |_: &axum::http::Response<axum::body::Body>, _: Duration, _: &Span| {},
         );
 
     axum::Router::new()

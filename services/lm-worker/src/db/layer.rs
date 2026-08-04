@@ -59,8 +59,7 @@ impl DbLayer {
     pub async fn delete_cached_conversation(&self, conversation_id: &str) {
         if let Err(e) = self.cache.delete_conversation(conversation_id).await {
             tracing::error!(error = %e, conversation_id, "Failed to delete conversation from cache");
-        };
-        tracing::info!(conversation_id, "Deleted from cache");
+        }
     }
 
     pub async fn refresh_cache(&self, conversation_id: &str) {
@@ -116,10 +115,7 @@ impl DbLayer {
     pub async fn get_messages_from_conversation(&self, conversation_id: &str) -> Vec<Message> {
         match self.conversation.get_conversation(conversation_id).await {
             Ok(Some(doc)) => timeline::timeline_to_messages(&doc.timeline),
-            Ok(None) => {
-                tracing::info!(conversation_id, "No existing conversation, starting fresh");
-                Vec::new()
-            }
+            Ok(None) => Vec::new(),
             Err(e) => {
                 tracing::warn!(error = %e, conversation_id, "MongoDB read failed");
                 Vec::new()

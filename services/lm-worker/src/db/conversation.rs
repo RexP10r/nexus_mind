@@ -48,12 +48,6 @@ impl ConversationStore {
             .await
             .map_err(|e| WorkerError::Db(format!("Mongo append error: {}", e)))?;
 
-        tracing::info!(
-            conversation_id,
-            entries_appended = entries.len(),
-            tokens_added,
-            "Atomically appended to conversation timeline"
-        );
         Ok(())
     }
 
@@ -90,11 +84,6 @@ impl ConversationStore {
             .await
             .map_err(|e| WorkerError::Db(format!("Mongo find error: {}", e)))?;
 
-        tracing::info!(
-            conversation_id,
-            found = result.is_some(),
-            "Loaded conversation from Mongo"
-        );
         Ok(result)
     }
 
@@ -132,7 +121,6 @@ impl ConversationStore {
             .and_then(|d| d.get_i64("message_count").ok())
             .unwrap_or(0) as u64;
 
-        tracing::info!(conversation_id, count, "Retrieved message count");
         Ok(count)
     }
 

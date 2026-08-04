@@ -49,8 +49,6 @@ impl<'a> AgentLoop<'a> {
                 return Ok(result);
             }
 
-            tracing::info!(iteration, max_iterations, "Agent iteration");
-
             let response_text = self.call_llm(&mut state, &system_prompt, params).await?;
 
             if let Some(result) = self.process_llm_response(&mut state, &response_text) {
@@ -114,7 +112,7 @@ impl<'a> AgentLoop<'a> {
 
         state.consume_tokens(response.tokens_processed, response.tokens_generated)?;
 
-        tracing::info!(
+        tracing::debug!(
             tokens_processed = response.tokens_processed,
             tokens_generated = response.tokens_generated,
             tokens_total = state.tokens_used,
@@ -133,11 +131,6 @@ impl<'a> AgentLoop<'a> {
         match extract_llm_response(text) {
             Ok(llm_response) => {
                 if let Some(result) = ResponseHandler::handle(state, llm_response, &self.tool_handler) {
-                    tracing::info!(
-                        total_tokens = result.total_tokens,
-                        reasoning_steps = result.reasoning_steps.len(),
-                        "Agent run completed"
-                    );
                     return Some(result);
                 }
                 None

@@ -34,11 +34,6 @@ impl CacheStore {
                 .await
                 .map_err(|e| WorkerError::Db(format!("Redis expire error: {}", e)))?;
         }
-        tracing::info!(
-            conversation_id = %doc.conversation_id,
-            ttl_secs = self.ttl_secs,
-            "Cached conversation in Redis"
-        );
         Ok(())
     }
 
@@ -49,7 +44,6 @@ impl CacheStore {
         conn.del::<_, ()>(&key)
             .await
             .map_err(|e| WorkerError::Db(format!("Redis del error: {}", e)))?;
-        tracing::info!(conversation_id, "Invalidated Redis cache for conversation");
         Ok(())
     }
 
@@ -68,7 +62,6 @@ impl CacheStore {
             Some(s) => {
                 let doc: ConversationDoc = serde_json::from_str(&s)
                     .map_err(|e| WorkerError::Db(format!("Deserialize error: {}", e)))?;
-                tracing::info!(conversation_id, "Loaded conversation from Redis cache");
                 Ok(Some(doc))
             }
             None => Ok(None),

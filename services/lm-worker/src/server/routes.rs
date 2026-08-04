@@ -57,12 +57,6 @@ fn log_request_params(params: &GenerationParams) {
     );
 }
 
-fn spawn_conversation_deletion<'a>(db: Arc<DbLayer>, conversation_id: Arc<String>) {
-    tokio::spawn(async move {
-        db.delete_cached_conversation(&conversation_id).await;
-    });
-}
-
 fn success_response(
     conversation_id: String,
     answer: String,
@@ -106,8 +100,6 @@ fn handle_agent_result(
                 "Chat completed successfully"
             );
 
-            spawn_conversation_deletion(state.db.clone(), ctx.conversation_id.clone());
-
             let db = state.db.clone();
             let llm = state.llm.clone();
             let history_max = state.config.history_max_messages;
@@ -116,8 +108,14 @@ fn handle_agent_result(
             let new_message = ctx.new_message.clone();
             let agent_result_clone = agent_result.clone();
             tokio::spawn(async move {
+                db.delete_cached_conversation(&conversation_id).await;
+
                 if let Err(e) = db
-                    .append_turn_to_conversation(&conversation_id, &new_message, &agent_result_clone)
+                    .append_turn_to_conversation(
+                        &conversation_id,
+                        &new_message,
+                        &agent_result_clone,
+                    )
                     .await
                 {
                     tracing::error!(

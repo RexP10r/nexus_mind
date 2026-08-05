@@ -3,36 +3,30 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="", case_sensitive=False)
+    model_config = SettingsConfigDict(env_prefix="", case_sensitive=False, env_file=".env")
 
-    # Server settings
-    host: str = Field(default="[::]", alias="HOST")
-    port: int = Field(default=50051, alias="PORT")
-    max_workers: int = Field(default=4, alias="MAX_WORKERS")
+    host: str = Field(alias="HOST")
+    port: int = Field(alias="PORT")
+    max_workers: int = Field(alias="MAX_WORKERS")
 
-    # Model settings
-    model_name: str = Field(
-        default="./models/omnicoder-9b-q4_k_m.gguf", alias="MODEL_NAME")
-    device: str = Field(default="cuda", alias="DEVICE")
-    torch_dtype: str = Field(default="auto", alias="TORCH_DTYPE")
+    model_name: str = Field(alias="MODEL_NAME")
+    device: str = Field(alias="DEVICE")
+    torch_dtype: str = Field(alias="TORCH_DTYPE")
 
-    # LLaMA.cpp params
-    n_gpu_layers: int = Field(default=-1, alias="LLAMA_N_GPU_LAYERS")
-    n_ctx: int = Field(default=32764, alias="LLAMA_N_CTX")
-    n_batch: int = Field(default=512, alias="LLAMA_N_BATCH")
-    n_ubatch: int = Field(default=256, alias="LLAMA_N_UBATCH")
+    n_gpu_layers: int = Field(alias="LLAMA_N_GPU_LAYERS")
+    n_ctx: int = Field(alias="LLAMA_N_CTX")
+    n_batch: int = Field(alias="LLAMA_N_BATCH")
+    n_ubatch: int = Field(alias="LLAMA_N_UBATCH")
     n_threads: int | None = Field(default=None, alias="LLAMA_N_THREADS")
     n_threads_batch: int | None = Field(
         default=None, alias="LLAMA_N_THREADS_BATCH")
     chat_format: str | None = Field(
         default=None, alias="LLAMA_CHAT_FORMAT")
 
-    # Memory & Performance
-    offload_kqv: bool = Field(default=False, alias="LLAMA_OFFLOAD_KQV")
-    flash_attn: bool = Field(default=False, alias="LLAMA_FLASH_ATTN")
-    low_vram: bool = Field(default=False, alias="LLAMA_LOW_VRAM")
+    offload_kqv: bool = Field(alias="LLAMA_OFFLOAD_KQV")
+    flash_attn: bool = Field(alias="LLAMA_FLASH_ATTN")
+    low_vram: bool = Field(alias="LLAMA_LOW_VRAM")
 
-    # Quantization
     n_parts: int | None = Field(default=None, alias="LLAMA_N_PARTS")
-    use_mmap: bool = Field(default=True, alias="LLAMA_USE_MMAP")
-    use_mlock: bool = Field(default=False, alias="LLAMA_USE_MLOCK")
+    use_mmap: bool = Field(alias="LLAMA_USE_MMAP")
+    use_mlock: bool = Field(alias="LLAMA_USE_MLOCK")

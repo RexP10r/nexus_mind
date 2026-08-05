@@ -21,7 +21,7 @@ pub fn extract_llm_response(raw: &str) -> Result<AgentResponse, String> {
         return Ok(resp);
     }
 
-    for &(ref prefix, ref suffix) in EXTRACTION_PATTERNS {
+    for (prefix, suffix) in EXTRACTION_PATTERNS {
         if let Ok(resp) = extract_json_between(&cleaned, prefix, suffix) {
             return Ok(resp);
         }

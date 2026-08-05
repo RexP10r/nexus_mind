@@ -7,52 +7,52 @@ pub enum ProviderType {
 
 #[derive(clap::ValueEnum, Clone, Debug)]
 pub enum AgentType {
-    RAG,
+    Rag,
 }
 
 #[derive(Parser, Clone, Debug)]
 #[command(name = "lm-worker")]
 pub struct Config {
-    #[arg(env = "GRPC_ADDR", long, default_value = "http://[::1]:50051")]
+    #[arg(env = "GRPC_ADDR", long)]
     pub grpc_addr: String,
 
-    #[arg(env = "HTTP_PORT", long, default_value_t = 8080)]
+    #[arg(env = "HTTP_PORT", long)]
     pub http_port: u16,
 
-    #[arg(env = "LOG_LEVEL", long, default_value = "info")]
+    #[arg(env = "LOG_LEVEL", long)]
     pub log_level: String,
 
-    #[arg(env = "LOG_JSON", long, default_value_t = false)]
+    #[arg(env = "LOG_JSON", long)]
     pub log_json: bool,
 
-    #[arg(env = "MAX_ITERATIONS", long, default_value_t = 10)]
+    #[arg(env = "MAX_ITERATIONS", long)]
     pub max_iterations: u32,
 
-    #[arg(env = "REQUEST_TIMEOUT_SECS", long, default_value_t = 60)]
-    pub request_timeout_secs: u64,
+    #[arg(env = "REQUEST_TIMEOUT", long)]
+    pub request_timeout: u64,
 
-    #[arg(env = "PROVIDER_TYPE", long, default_value = "grpc")]
+    #[arg(env = "PROVIDER_TYPE", long)]
     pub provider_type: ProviderType,
 
-    #[arg(env = "AGENT_TYPE", long, default_value = "rag")]
+    #[arg(env = "AGENT_TYPE", long)]
     pub agent_type: AgentType,
 
-    #[arg(env = "REDIS_URL", long, default_value = "redis://localhost:6379")]
+    #[arg(env = "REDIS_URL", long)]
     pub redis_url: String,
 
-    #[arg(env = "MONGO_URI", long, default_value = "mongodb://localhost:27017")]
+    #[arg(env = "MONGO_URI", long)]
     pub mongo_uri: String,
 
-    #[arg(env = "MONGO_DB", long, default_value = "nexus_mind")]
+    #[arg(env = "MONGO_DB", long)]
     pub mongo_db: String,
 
-    #[arg(env = "HISTORY_MAX_MESSAGES", long, default_value_t = 10)]
+    #[arg(env = "HISTORY_MAX_MESSAGES", long)]
     pub history_max_messages: u32,
 
-    #[arg(env = "SUMMARY_INTERVAL", long, default_value_t = 5)]
+    #[arg(env = "SUMMARY_INTERVAL", long)]
     pub summary_interval: u32,
 
-    #[arg(env = "REDIS_TTL_SECS", long, default_value_t = 86400)]
+    #[arg(env = "REDIS_TTL_SECS", long)]
     pub redis_ttl_secs: u64,
 }
 

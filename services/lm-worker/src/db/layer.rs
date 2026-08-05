@@ -105,7 +105,7 @@ impl DbLayer {
             Ok(Some(doc)) => return timeline::timeline_to_messages(&doc.timeline),
             Ok(None) => {}
             Err(e) => {
-                tracing::warn!(error = %e, conversation_id, "Redis read failed, falling to MongoDB");
+                tracing::debug!(error = %e, conversation_id, "Redis read failed, falling to MongoDB");
             }
         }
 

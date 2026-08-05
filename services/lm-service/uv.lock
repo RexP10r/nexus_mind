@@ -192,6 +192,7 @@ dependencies = [
     { name = "llama-cpp-python" },
     { name = "protobuf" },
     { name = "pydantic-settings" },
+    { name = "python-dotenv" },
     { name = "torch" },
 ]
 
@@ -202,6 +203,7 @@ requires-dist = [
     { name = "llama-cpp-python", specifier = ">=0.3.34" },
     { name = "protobuf", specifier = ">=7.35.1" },
     { name = "pydantic-settings", specifier = ">=2.14.2" },
+    { name = "python-dotenv", specifier = ">=1.0" },
     { name = "torch", specifier = ">=2.0.0" },
 ]
 

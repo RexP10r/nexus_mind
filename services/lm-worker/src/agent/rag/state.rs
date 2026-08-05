@@ -1,5 +1,5 @@
 use crate::error::WorkerError;
-use crate::model::{AgentAction, AgentStep, Message};
+use crate::model::{AgentAction, AgentStep, ChatRole, Message};
 
 #[derive(Debug)]
 pub struct AgentState {
@@ -52,7 +52,7 @@ impl AgentState {
 
     pub fn add_final_answer(&mut self, answer: String) {
         self.conversation.push(Message {
-            role: "assistant".to_string(),
+            role: ChatRole::Assistant,
             content: answer,
         });
     }

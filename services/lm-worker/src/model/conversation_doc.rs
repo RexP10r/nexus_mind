@@ -2,6 +2,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 use super::agent::AgentAction;
+use super::message::ChatRole;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConversationDoc {
@@ -19,8 +20,8 @@ pub struct ConversationDoc {
 #[serde(tag = "type")]
 pub enum ConversationEntry {
     #[serde(rename = "message")]
-    Message {
-        role: String,
+    ChatMsg {
+        role: ChatRole,
         content: String,
     },
     #[serde(rename = "step")]

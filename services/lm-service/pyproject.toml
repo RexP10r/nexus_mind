@@ -10,5 +10,6 @@ dependencies = [
     "llama-cpp-python>=0.3.34",
     "protobuf>=7.35.1",
     "pydantic-settings>=2.14.2",
+    "python-dotenv>=1.0",
     "torch>=2.0.0",
 ]

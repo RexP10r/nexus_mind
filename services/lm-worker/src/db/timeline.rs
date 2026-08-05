@@ -1,11 +1,11 @@
-use crate::model::{AgentResult, ConversationEntry, Message};
+use crate::model::{AgentResult, ChatRole, ConversationEntry, Message};
 
 pub fn timeline_to_messages(timeline: &[ConversationEntry]) -> Vec<Message> {
     timeline
         .iter()
         .filter_map(|entry| match entry {
-            ConversationEntry::Message { role, content } => Some(Message {
-                role: role.clone(),
+            ConversationEntry::ChatMsg { role, content } => Some(Message {
+                role: *role,
                 content: content.clone(),
             }),
             _ => None,
@@ -19,8 +19,8 @@ pub fn build_timeline_entries(
 ) -> Vec<ConversationEntry> {
     let mut entries = Vec::new();
 
-    entries.push(ConversationEntry::Message {
-        role: user_msg.role.clone(),
+    entries.push(ConversationEntry::ChatMsg {
+        role: user_msg.role,
         content: user_msg.content.clone(),
     });
 
@@ -33,8 +33,8 @@ pub fn build_timeline_entries(
     }
 
     if !agent_result.final_answer.is_empty() {
-        entries.push(ConversationEntry::Message {
-            role: "assistant".to_string(),
+        entries.push(ConversationEntry::ChatMsg {
+            role: ChatRole::Assistant,
             content: agent_result.final_answer.clone(),
         });
     }

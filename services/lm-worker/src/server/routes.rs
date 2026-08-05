@@ -3,7 +3,7 @@ use axum::http::StatusCode;
 use axum::Json;
 use std::sync::Arc;
 
-use crate::model::{AgentResult, GenerationParams, Message};
+use crate::model::{AgentResult, ChatRole, GenerationParams, Message};
 use crate::server::dto::{ChatRequest, ChatResponse, ErrorResponse, HealthResponse};
 use crate::server::AppState;
 
@@ -53,7 +53,7 @@ fn success_response(
     let response = ChatResponse {
         conversation_id,
         message: Message {
-            role: "assistant".into(),
+            role: ChatRole::Assistant,
             content: answer,
         },
     };

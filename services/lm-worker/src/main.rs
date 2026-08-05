@@ -78,21 +78,21 @@ async fn init_agent(
     config: &Config,
 ) -> Result<Arc<dyn Agent>, WorkerError> {
     let agent: Arc<dyn Agent> = match config.agent_type {
-        AgentType::RAG => {
+        AgentType::Rag => {
             let tool_registry = InMemoryToolRegistry::from_tools(vec![Box::new(CalculatorTool)]);
             let tool_count = tool_registry.tool_count();
-            tracing::info!(
-                agent_type = "rag",
-                max_iterations = config.max_iterations,
-                request_timeout_secs = config.request_timeout_secs,
-                tool_count,
+                tracing::info!(
+                    agent_type = "rag",
+                    max_iterations = config.max_iterations,
+                    request_timeout = config.request_timeout,
+                    tool_count,
                 "Initializing agent"
             );
             Arc::new(RAGAgent::new(
                 llm,
                 tool_registry,
                 config.max_iterations,
-                config.request_timeout_secs,
+                config.request_timeout,
             ))
         }
     };
@@ -101,6 +101,7 @@ async fn init_agent(
 
 #[tokio::main]
 async fn main() -> anyhow::Result<(), WorkerError> {
+    dotenvy::dotenv().ok();
     let config = Config::from_env();
     init_tracing(&config);
 
@@ -113,20 +114,17 @@ async fn main() -> anyhow::Result<(), WorkerError> {
     };
 
     let llm = init_llm(&config).await?;
-    let llm_for_state = Arc::clone(&llm);
-    let agent = init_agent(llm, &config).await?;
-
-    let http_port = config.http_port;
+    let agent = init_agent(Arc::clone(&llm), &config).await?;
 
     let state = AppState {
         agent,
-        llm: llm_for_state,
+        llm,
         db: Arc::new(db),
-        config,
+        config: config.clone(),
     };
 
     let router = server::build_router(state);
-    let addr = SocketAddr::from(([0, 0, 0, 0], http_port));
+    let addr = SocketAddr::from(([0, 0, 0, 0], config.http_port));
 
     tracing::info!(address = %addr, "HTTP server listening");
     let listener = tokio::net::TcpListener::bind(addr).await?;

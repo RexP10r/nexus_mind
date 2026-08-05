@@ -24,7 +24,7 @@ enum InferenceStatus {
   STATUS_SUCCESS = 1;
   STATUS_ERROR = 2;
   STATUS_TIMEOUT = 3;
-  STRATEGY_NOT_SUPPORTED = 4;
+  reserved 4;
 }
 
 // =============================================================================

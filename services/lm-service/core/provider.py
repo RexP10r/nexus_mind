@@ -14,8 +14,8 @@ class LMProvider(ABC):
         messages: list[ChatMessage],
         temperature: float = 0.7,
         max_tokens: int = 256,
-        top_p: float | None = None,
-        top_k: int | None = None,
+        top_p: float = 0.9,
+        top_k: int = 32,
     ) -> GenerateResult:
         pass
 

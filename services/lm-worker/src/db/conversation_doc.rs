@@ -11,9 +11,9 @@ pub const MONGO_TTL_DAYS: u32 = 30;
 pub async fn create_ttl_index(
     collection: &Collection<ConversationDoc>,
 ) -> Result<(), WorkerError> {
-    let expire_secs = MONGO_TTL_DAYS as u64 * 24 * 3600;
+    let ttl_secs = MONGO_TTL_DAYS as u64 * 24 * 3600;
     let options = IndexOptions::builder()
-        .expire_after(Duration::from_secs(expire_secs))
+        .expire_after(Duration::from_secs(ttl_secs))
         .build();
 
     collection

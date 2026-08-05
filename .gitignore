@@ -1,4 +1,5 @@
 target/
 __pycache__/
 .venv/
+.env
 rlm/

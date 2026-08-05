@@ -24,13 +24,13 @@ impl RAGAgent {
         llm: Arc<dyn LlmProvider>,
         tool_registry: InMemoryToolRegistry,
         max_iterations: u32,
-        request_timeout_secs: u64,
+        request_timeout: u64,
     ) -> Self {
         Self {
             llm,
             tool_registry,
             max_iterations,
-            request_timeout: Duration::from_secs(request_timeout_secs),
+            request_timeout: Duration::from_secs(request_timeout),
         }
     }
 }

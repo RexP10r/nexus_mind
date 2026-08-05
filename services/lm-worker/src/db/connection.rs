@@ -48,7 +48,7 @@ pub async fn connect_mongo(
     create_ttl_index(&collection).await.map_err(|e| {
         tracing::error!(
             uri,
-            db = db_name,
+            db_name,
             error = %e,
             "Cannot connect to MongoDB. Start it with:\n  docker run -d --name mongo -p 27017:27017 mongo:7"
         );

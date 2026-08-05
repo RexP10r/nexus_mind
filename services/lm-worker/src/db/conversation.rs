@@ -1,6 +1,6 @@
 use mongodb::bson::{doc, Bson, Document};
 use mongodb::Collection;
-use futures_util::TryStreamExt;
+use serde::{de::DeserializeOwned, Deserialize};
 
 use crate::error::WorkerError;
 use crate::model::{ConversationDoc, ConversationEntry};
@@ -24,6 +24,23 @@ impl ConversationStore {
         Self { collection }
     }
 
+    async fn get_field<F>(
+        &self,
+        conversation_id: &str,
+        projection: Document,
+    ) -> Result<Option<F>, WorkerError>
+    where
+        F: DeserializeOwned + Send + Sync,
+    {
+        let filter = doc! { "conversation_id": conversation_id };
+        self.collection
+            .clone_with_type::<F>()
+            .find_one(filter)
+            .projection(projection)
+            .await
+            .map_err(|e| WorkerError::Db(format!("Mongo find error: {}", e)))
+    }
+
     #[tracing::instrument(skip(self), fields(conversation_id = %conversation_id))]
     pub async fn append_timeline_entries(
         &self,
@@ -37,7 +54,8 @@ impl ConversationStore {
         let filter = doc! { "conversation_id": conversation_id };
         let update = doc! {
             "$push": { "timeline": { "$each": bson_entries } },
-            "$inc": { "total_tokens": tokens_added as i64 },
+            "$inc": { "total_tokens": tokens_added as u32 },
+            "$inc": { "total_messages": 2 as u32 },
             "$set": { "updated_at": now },
             "$setOnInsert": { "conversation_id": conversation_id, "created_at": now },
         };
@@ -88,40 +106,16 @@ impl ConversationStore {
     }
 
     #[tracing::instrument(skip(self), fields(conversation_id = %conversation_id))]
-    pub async fn get_message_count(
-        &self,
-        conversation_id: &str,
-    ) -> Result<u64, WorkerError> {
-        let pipeline = vec![
-            doc! { "$match": { "conversation_id": conversation_id } },
-            doc! { "$project": {
-                "message_count": {
-                    "$size": {
-                        "$filter": {
-                            "input": "$timeline",
-                            "as": "e",
-                            "cond": { "$eq": ["$$e.type", "message"] }
-                        }
-                    }
-                }
-            }},
-        ];
+    pub async fn get_message_count(&self, conversation_id: &str) -> Result<u32, WorkerError> {
+        #[derive(Deserialize)]
+        struct CountProjection {
+            total_messages: u32,
+        }
 
-        let mut cursor = self
-            .collection
-            .clone_with_type::<Document>()
-            .aggregate(pipeline)
-            .await
-            .map_err(|e| WorkerError::Db(format!("Mongo aggregate error: {}", e)))?;
+        let result: Option<CountProjection> =
+            self.get_field(conversation_id, doc! { "total_messages": 1 }).await?;
 
-        let count = cursor
-            .try_next()
-            .await
-            .map_err(|e| WorkerError::Db(format!("Mongo cursor error: {}", e)))?
-            .and_then(|d| d.get_i64("message_count").ok())
-            .unwrap_or(0) as u64;
-
-        Ok(count)
+        Ok(result.map(|r| r.total_messages).unwrap_or(0))
     }
 
     #[tracing::instrument(skip(self), fields(conversation_id = %conversation_id))]
@@ -129,18 +123,14 @@ impl ConversationStore {
         &self,
         conversation_id: &str,
     ) -> Result<Option<String>, WorkerError> {
-        let filter = doc! { "conversation_id": conversation_id };
-        let projection = doc! { "summary": 1 };
+        #[derive(Deserialize)]
+        struct SummaryProjection {
+            summary: Option<String>,
+        }
 
-        let result: Option<Document> = self
-            .collection
-            .clone_with_type::<Document>()
-            .find_one(filter)
-            .projection(projection)
-            .await
-            .map_err(|e| WorkerError::Db(format!("Mongo find error: {}", e)))?;
+        let result: Option<SummaryProjection> =
+            self.get_field(conversation_id, doc! { "summary": 1 }).await?;
 
-        let summary = result.and_then(|d| d.get_str("summary").ok().map(|s| s.to_string()));
-        Ok(summary)
+        Ok(result.and_then(|r| r.summary))
     }
 }

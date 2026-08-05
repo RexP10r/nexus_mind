@@ -4,14 +4,9 @@ use serde::{Deserialize, Serialize};
 use crate::model::AgentAction;
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(untagged)]
-pub enum AgentResponse {
-    Think {
-        thought: String,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        next_action: Option<AgentAction>,
-    },
-    FinalAnswer { answer: String },
+pub struct AgentResponse {
+    pub thought: String,
+    pub action: AgentAction,
 }
 
 pub fn extract_llm_response(raw: &str) -> Result<AgentResponse, String> {
@@ -72,42 +67,31 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_extract_think() {
-        let raw = r#"{"thought": "I need to calculate", "next_action": {"tool_name": "calculate", "tool_input": "2+2"}}"#;
+    fn test_extract_tool_call() {
+        let raw = r#"{"thought": "I need to calculate", "action": {"tool_name": "calculate", "tool_input": "2+2"}}"#;
         let resp = extract_llm_response(raw).unwrap();
-        match resp {
-            AgentResponse::Think { thought, next_action } => {
-                assert_eq!(thought, "I need to calculate");
-                assert!(next_action.is_some());
-            }
-            _ => panic!("expected Think"),
-        }
+        assert_eq!(resp.thought, "I need to calculate");
+        assert!(matches!(resp.action, AgentAction::ExecuteTool { .. }));
     }
 
     #[test]
-    fn test_extract_think_without_next_action() {
-        let raw = r#"{"thought": "Just thinking without tools"}"#;
+    fn test_extract_finish() {
+        let raw = r#"{"thought": "The answer is clear", "action": {"answer": "42"}}"#;
         let resp = extract_llm_response(raw).unwrap();
-        assert!(matches!(resp, AgentResponse::Think { .. }));
-    }
-
-    #[test]
-    fn test_extract_final_answer() {
-        let raw = r#"{"answer": "42"}"#;
-        let resp = extract_llm_response(raw).unwrap();
-        match resp {
-            AgentResponse::FinalAnswer { answer } => assert_eq!(answer, "42"),
-            _ => panic!("expected FinalAnswer"),
+        assert_eq!(resp.thought, "The answer is clear");
+        match resp.action {
+            AgentAction::Finish { answer } => assert_eq!(answer, "42"),
+            _ => panic!("expected Finish"),
         }
     }
 
     #[test]
     fn test_extract_with_markdown_fence() {
-        let raw = "```json\n{\"answer\": \"Paris\"}\n```";
+        let raw = "```json\n{\"thought\": \"done\", \"action\": {\"answer\": \"Paris\"}}\n```";
         let resp = extract_llm_response(raw).unwrap();
-        match resp {
-            AgentResponse::FinalAnswer { answer } => assert_eq!(answer, "Paris"),
-            _ => panic!("expected FinalAnswer"),
+        match resp.action {
+            AgentAction::Finish { answer } => assert_eq!(answer, "Paris"),
+            _ => panic!("expected Finish"),
         }
     }
 
@@ -118,8 +102,8 @@ mod tests {
     }
 
     #[test]
-    fn test_extract_invalid_json_but_not_valid_shape() {
-        let raw = r#"{"foo": "bar"}"#;
+    fn test_extract_missing_action() {
+        let raw = r#"{"thought": "just thinking"}"#;
         assert!(extract_llm_response(raw).is_err());
     }
 

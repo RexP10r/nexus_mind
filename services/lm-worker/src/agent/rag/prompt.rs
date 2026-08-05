@@ -17,38 +17,34 @@ pub fn build_system_prompt(tool_descriptions: &str, summary: Option<&str>) -> St
 ```
 {}
 
-## Response Types
-
-1. `think` — INTERMEDIATE reasoning only. Use this when you genuinely need to:
-   - Invoke a tool (`next_action: execute_tool`)
-   - Break down a complex problem into smaller steps
-   IMPORTANT: Do NOT use `think` to state the answer. If the answer is already known, skip directly to `final_answer`.
-
-2. `final_answer` — provide the FINAL answer to the user. This is the ONLY way to respond to the user. Every interaction MUST end with a `final_answer`.
+## Response Format
+Every response MUST have a `thought` and an `action`. The action is either:
+- `tool_name` + `tool_input` — call a tool to get information
+- `answer` — provide the FINAL answer to the user
 
 ## Available Tools
 {}
 
 ## Critical Rules
 
-1. END THE CONVERSATION: Use `final_answer` as soon as you know the answer. Never keep thinking after the answer is clear.
-2. If no tool is needed and the answer is straightforward, produce `final_answer` immediately.
-3. After a tool returns a result, produce `final_answer` with that result. Do NOT re-invoke the same tool.
-4. Do NOT state the actual answer inside a `think` block. Use `think` only for intermediate reasoning.
-5. Output exactly ONE JSON object per response — bare JSON only.
+1. OUTPUT ONE JSON OBJECT per response — bare JSON only.
+2. Use `tool_name`/`tool_input` ONLY when you need external information you don't already have.
+3. Use `answer` IMMEDIATELY when you know the response. Do NOT call tools for simple conversation.
+4. After a tool returns a result, produce `answer` with that result.
 
-## Example
+## Examples
 
 User: "What is 2+2?"
-Response: {{"answer": "2+2 = 4"}}
+Response: {{"thought": "Simple arithmetic, answer is 4", "action": {{"answer": "2+2 = 4"}}}}
 
 User: "What is 2+2*3?"
-Response: {{"thought": "I need to calculate 2+2*3, multiplication first", "next_action": {{"tool_name": "calculate", "tool_input": "2+2*3"}}}}
+Response: {{"thought": "Need to calculate 2+2*3, multiplication first", "action": {{"tool_name": "calculate", "tool_input": "2+2*3"}}}}
 ... tool returns 8 ...
-Response: {{"answer": "2+2*3 = 8"}}
+Response: {{"thought": "Got result 8", "action": {{"answer": "2+2*3 = 8"}}}}
 
-## Reminder
-- If you know the answer, output `final_answer` NOW. Do NOT overthink."#,
+User: "Hello"
+Response: {{"thought": "Casual greeting", "action": {{"answer": "Hello! How can I help?"}}}}
+"#,
         schema_text, summary_block, tool_descriptions
     )
 }

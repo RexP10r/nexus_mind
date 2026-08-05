@@ -30,14 +30,6 @@ impl AgentState {
         Ok(())
     }
 
-    pub fn record_thought(&mut self, thought: String) {
-        self.reasoning_steps.push(AgentStep {
-            thought,
-            action: None,
-            observation: None,
-        });
-    }
-
     pub fn record_parse_error(&mut self, raw: &str) {
         let preview: String = raw.chars().take(200).collect();
         self.reasoning_steps.push(AgentStep {
@@ -57,11 +49,11 @@ impl AgentState {
         });
     }
 
-    pub fn add_turn(&mut self, thought: String, observation: String, action: Option<AgentAction>) {
+    pub fn add_turn(&mut self, thought: String, observation: String, action: AgentAction) {
         self.reasoning_steps.push(AgentStep {
             thought,
             observation: Some(observation),
-            action,
+            action: Some(action),
         });
     }
 }

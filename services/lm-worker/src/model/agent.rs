@@ -19,6 +19,9 @@ pub enum AgentAction {
         tool_name: String,
         tool_input: String,
     },
+    Finish {
+        answer: String,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -52,12 +55,13 @@ pub fn reasoning_steps_to_chat(steps: &[AgentStep]) -> Vec<ChatMessage> {
                     content: format!("Observation: {}", obs),
                 });
             }
-            _ => {
+            (Some(AgentAction::Finish { answer }), _) => {
                 out.push(ChatMessage {
                     role: ChatRole::Assistant,
-                    content: step.thought.clone(),
+                    content: answer.clone(),
                 });
             }
+            _ => {}
         }
     }
 

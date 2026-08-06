@@ -12,7 +12,9 @@ pub struct ConversationDoc {
     #[serde(with = "bson::serde_helpers::chrono_datetime_as_bson_datetime")]
     pub updated_at: DateTime<Utc>,
     pub summary: Option<String>,
+    #[serde(default)]
     pub total_messages: u32,
+    #[serde(default)]
     pub total_tokens: u32,
     pub timeline: Vec<ConversationEntry>,
 }

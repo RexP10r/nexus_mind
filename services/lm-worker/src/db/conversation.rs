@@ -2,6 +2,7 @@ use mongodb::bson::{doc, Bson, Document};
 use mongodb::Collection;
 use serde::{de::DeserializeOwned, Deserialize};
 
+use crate::db::summary;
 use crate::error::WorkerError;
 use crate::model::{ConversationDoc, ConversationEntry};
 
@@ -69,7 +70,7 @@ impl ConversationStore {
         Ok(())
     }
 
-    #[tracing::instrument(skip(self), fields(conversation_id = %conversation_id))]
+    #[tracing::instrument(skip(self, summary), fields(conversation_id = %conversation_id))]
     pub async fn set_summary(
         &self,
         conversation_id: &str,
@@ -86,7 +87,7 @@ impl ConversationStore {
             .await
             .map_err(|e| WorkerError::Db(format!("Mongo set_summary error: {}", e)))?;
 
-        tracing::info!(conversation_id, "Atomically set conversation summary");
+        tracing::info!(summary, conversation_id, "Atomically set conversation summary");
         Ok(())
     }
 

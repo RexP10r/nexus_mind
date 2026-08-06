@@ -1,5 +1,15 @@
+use serde::Deserialize;
+
+use crate::agent::rag::schema::extract_json_response;
 use crate::error::WorkerError;
 use crate::model::{ChatMessage, ChatRole, GenerationParams, Message};
+
+#[derive(Debug, Deserialize)]
+struct SummaryResponse {
+    #[allow(dead_code)]
+    thought: String,
+    answer: String,
+}
 
 pub fn should_summarize(total: u64, history_max: u32, interval: u32) -> bool {
     total > history_max as u64 && (total - history_max as u64) % interval as u64 == 0
@@ -17,12 +27,14 @@ pub fn build_summarization_prompt(messages: &[Message], existing_summary: Option
     };
 
     format!(
-        r#"You are a conversation summarizer. Produce a concise, combined summary of the entire conversation history.
-Output ONLY the summary text, no JSON, no formatting.
+        r#"You are a conversation summarizer. Produce a concise paragraph summarizing the conversation history below.
 {previous_summary}
-## New Messages to Incorporate
+## Messages to Summarize
 {conversation_text}
-## Combined Summary"#,
+## Instructions
+Return ONLY a JSON object with "thought" (your brief reasoning) and "answer" (the summary paragraph):
+{{"thought": "...", "answer": "..."}}
+Do NOT use tool calls or any other action type — only a plain "answer" string."#,
         previous_summary = previous_summary,
         conversation_text = conversation_text
     )
@@ -48,11 +60,19 @@ pub async fn generate_summary(
         content: prompt,
     }];
 
-    llm.generate(chat_messages, &summary_params())
+    let raw_text = llm.generate(chat_messages, &summary_params())
         .await
         .map(|o| o.text)
         .map_err(|e| {
             tracing::warn!(error = %e, "LLM summarization failed");
             e
-        })
+        })?;
+
+    match extract_json_response::<SummaryResponse>(&raw_text) {
+        Ok(parsed) => Ok(parsed.answer),
+        Err(_) => {
+            tracing::debug!(raw_preview = %raw_text.chars().take(200).collect::<String>(), "Failed to parse summary JSON, using raw text");
+            Ok(raw_text)
+        }
+    }
 }

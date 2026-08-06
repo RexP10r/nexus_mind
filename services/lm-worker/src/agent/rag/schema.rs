@@ -1,5 +1,5 @@
 use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use crate::model::AgentAction;
 
@@ -10,14 +10,18 @@ pub struct AgentResponse {
 }
 
 pub fn extract_llm_response(raw: &str) -> Result<AgentResponse, String> {
+    extract_json_response(raw)
+}
+
+pub fn extract_json_response<T: DeserializeOwned>(raw: &str) -> Result<T, String> {
     let cleaned = strip_markdown_fences(raw.trim());
 
-    if let Ok(resp) = serde_json::from_str::<AgentResponse>(&cleaned) {
+    if let Ok(resp) = serde_json::from_str::<T>(&cleaned) {
         return Ok(resp);
     }
 
     for (prefix, suffix) in EXTRACTION_PATTERNS {
-        if let Ok(resp) = extract_json_between(&cleaned, prefix, suffix) {
+        if let Ok(resp) = extract_json_between::<T>(&cleaned, prefix, suffix) {
             return Ok(resp);
         }
     }
@@ -46,7 +50,7 @@ static EXTRACTION_PATTERNS: &[(&str, &str)] = &[
     ("", ""),
 ];
 
-fn extract_json_between(text: &str, prefix: &str, suffix: &str) -> Result<AgentResponse, String> {
+fn extract_json_between<T: DeserializeOwned>(text: &str, prefix: &str, suffix: &str) -> Result<T, String> {
     if prefix.is_empty() && suffix.is_empty() {
         return serde_json::from_str(text).map_err(|e| e.to_string());
     }

@@ -2,12 +2,13 @@ use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
 use rust_stemmers::{Algorithm, Stemmer};
+use serde::{Deserialize, Serialize};
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::error::WorkerError;
 use crate::model::EmbeddingVariant;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VocabState {
     pub term_to_index: HashMap<String, usize>,
     pub term_doc_count: Vec<u64>,

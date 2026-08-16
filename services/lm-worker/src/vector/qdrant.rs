@@ -3,15 +3,15 @@ use std::collections::HashMap;
 
 use qdrant_client::qdrant::vectors_config::Config;
 use qdrant_client::qdrant::{
-    CreateCollectionBuilder, Distance, GetPointsBuilder, NamedVectors, PointStruct,
-    SearchPointsBuilder, SparseVectorConfig, SparseVectorParamsBuilder, VectorParamsBuilder,
-    VectorParamsMap, VectorsConfig,
+    CreateCollectionBuilder, Distance, NamedVectors, PointStruct, SearchPointsBuilder,
+    SparseVectorConfig, SparseVectorParamsBuilder, VectorParamsBuilder, VectorParamsMap,
+    VectorsConfig,
 };
 use qdrant_client::{Payload, Qdrant};
-use serde_json::Value;
+use serde::{Deserialize, Serialize};
 
-use crate::embeddings::tfidf::VocabState;
 use crate::embeddings::EmbeddingProviders;
+use crate::embeddings::tfidf::VocabState;
 use crate::error::WorkerError;
 use crate::model::{Document, EmbeddingVariant, SearchResult};
 
@@ -19,47 +19,29 @@ const VOCAB_META_ID: u64 = 0;
 
 pub async fn get_collection_vocab(
     client: &Qdrant,
-    collection: &str,
+    collection_name: &str,
 ) -> Result<Option<VocabState>, WorkerError> {
-    let result = client
-        .get_points(
-            GetPointsBuilder::new(collection, vec![VOCAB_META_ID.into()]).with_payload(true),
-        )
+    let info = client
+        .collection_info(collection_name)
         .await
-        .map_err(|e| WorkerError::Qdrant(format!("Failed to get vocab meta: {}", e)))?;
-
-    if let Some(point) = result.result.into_iter().next() {
-        let payload_map = point
-            .payload
+        .map_err(|e| WorkerError::Qdrant(format!("Failed to get collection info: {}", e)))?;
+    if let Some(res) = info.result
+        && let Some(collection_config) = res.config
+        && !collection_config.metadata.is_empty()
+    {
+        let jspn_map: serde_json::Map<String, serde_json::Value> = collection_config
+            .metadata
             .into_iter()
             .map(|(k, v)| (k, v.into_json()))
-            .collect::<HashMap<String, Value>>();
-
-        if let Some(terms_val) = payload_map.get("terms") {
-            let terms_map: HashMap<String, u64> = serde_json::from_value(terms_val.clone())
-                .map_err(|e| {
-                    WorkerError::Qdrant(format!("Failed to parse vocab meta terms: {}", e))
-                })?;
-
-            let total_docs = payload_map
-                .get("total_docs")
-                .and_then(|v| v.as_u64())
-                .unwrap_or(0);
-
-            let mut term_to_index: HashMap<String, usize> = HashMap::new();
-            let mut term_doc_count: Vec<u64> = Vec::new();
-
-            for (i, (term, count)) in terms_map.into_iter().enumerate() {
-                term_to_index.insert(term, i);
-                term_doc_count.push(count);
-            }
-
-            return Ok(Some(VocabState {
-                term_to_index,
-                term_doc_count,
-                total_docs,
-            }));
-        }
+            .collect();
+        let json_metadata = serde_json::Value::Object(jspn_map);
+        let meta: QdrantMeta = serde_json::from_value(json_metadata).map_err(|e| {
+            WorkerError::Qdrant(format!(
+                "Failed to parse Qdrant metadata from given gRPC input: {}",
+                e
+            ))
+        })?;
+        return Ok(Some(meta.tfidf_vocab));
     }
 
     Ok(None)
@@ -67,19 +49,30 @@ pub async fn get_collection_vocab(
 
 pub struct QdrantVectorStore {
     client: Qdrant,
-    collection: String,
+    collection_name: String,
     embeddings: EmbeddingProviders,
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct QdrantMeta {
+    tfidf_vocab: VocabState,
+}
+impl Default for QdrantMeta {
+    fn default() -> Self {
+        Self {
+            tfidf_vocab: VocabState::default(),
+        }
+    }
 }
 
 impl QdrantVectorStore {
     pub async fn new(
         client: Qdrant,
-        collection: String,
+        collection_name: String,
         embeddings: EmbeddingProviders,
     ) -> Result<Self, WorkerError> {
         let store = Self {
             client,
-            collection,
+            collection_name,
             embeddings,
         };
         store.ensure_collection().await?;
@@ -87,11 +80,19 @@ impl QdrantVectorStore {
     }
 
     async fn ensure_collection(&self) -> Result<(), WorkerError> {
-        let exists = self.client.collection_info(&self.collection).await.is_ok();
+        let exists = self
+            .client
+            .collection_exists(self.collection_name.clone())
+            .await
+            .map_err(|e| {
+                WorkerError::Qdrant(format!("Failed to check if colletion exists: {}", e))
+            })?;
 
         if exists {
+            tracing::info!("Existing collection found");
             return Ok(());
         }
+        tracing::info!("Existing collection not found, creating a new one...");
 
         let mut vectors_config = VectorsConfigBuilder::new();
         vectors_config
@@ -99,18 +100,21 @@ impl QdrantVectorStore {
 
         let mut sparse_config = SparseVectorsConfigBuilder::new();
         sparse_config.add_named_vector_params("tfidf", SparseVectorParamsBuilder::default());
+        let metadata_value: HashMap<String, serde_json::Value> =
+            serde_json::from_value(serde_json::to_value(&QdrantMeta::default()).unwrap()).unwrap();
 
         self.client
             .create_collection(
-                CreateCollectionBuilder::new(&self.collection)
+                CreateCollectionBuilder::new(&self.collection_name)
                     .vectors_config(vectors_config)
-                    .sparse_vectors_config(sparse_config),
+                    .sparse_vectors_config(sparse_config)
+                    .metadata(metadata_value),
             )
             .await
             .map_err(|e| WorkerError::Qdrant(format!("Failed to create collection: {}", e)))?;
 
         tracing::info!(
-            collection = %self.collection,
+            collection = %self.collection_name,
             "Created Qdrant collection with named vectors (bert + tfidf)"
         );
 
@@ -134,7 +138,7 @@ impl QdrantVectorStore {
 
         self.client
             .upsert_points(
-                qdrant_client::qdrant::UpsertPointsBuilder::new(&self.collection, points)
+                qdrant_client::qdrant::UpsertPointsBuilder::new(&self.collection_name, points)
                     .wait(true),
             )
             .await
@@ -160,7 +164,7 @@ impl QdrantVectorStore {
         let results = self
             .client
             .search_points(
-                SearchPointsBuilder::new(&self.collection, dense_fallback, limit)
+                SearchPointsBuilder::new(&self.collection_name, dense_fallback, limit)
                     .vector_name("tfidf".to_string())
                     .with_payload(true),
             )
@@ -192,7 +196,7 @@ impl QdrantVectorStore {
         let results = self
             .client
             .search_points(
-                SearchPointsBuilder::new(&self.collection, vec, limit)
+                SearchPointsBuilder::new(&self.collection_name, vec, limit)
                     .vector_name("bert".to_string())
                     .with_payload(true),
             )
@@ -210,50 +214,11 @@ impl QdrantVectorStore {
             .collect())
     }
 
-    pub async fn update_vocab_meta(&self, vocab: &VocabState) -> Result<(), WorkerError> {
-        let terms_map: HashMap<String, u64> = vocab
-            .term_to_index
-            .iter()
-            .map(|(term, &idx)| (term.clone(), vocab.term_doc_count[idx]))
-            .collect();
-
-        let payload: Payload = serde_json::json!({
-            "terms": terms_map,
-            "total_docs": vocab.total_docs,
-        })
-        .try_into()
-        .map_err(|e| WorkerError::Qdrant(format!("Failed to build vocab meta payload: {}", e)))?;
-
-        let point = PointStruct::new(
-            VOCAB_META_ID,
-            NamedVectors::default()
-                .add_vector(
-                    "tfidf",
-                    qdrant_client::qdrant::Vector::new_sparse(vec![], vec![]),
-                )
-                .add_vector(
-                    "bert",
-                    qdrant_client::qdrant::Vector::new_dense(vec![0.0_f32; 384]),
-                ),
-            payload,
-        );
-
-        self.client
-            .upsert_points(
-                qdrant_client::qdrant::UpsertPointsBuilder::new(&self.collection, vec![point])
-                    .wait(true),
-            )
-            .await
-            .map_err(|e| WorkerError::Qdrant(format!("Failed to update vocab meta: {}", e)))?;
-
-        Ok(())
-    }
-
     async fn list_all_document_ids(&self) -> Result<Vec<String>, WorkerError> {
         let results = self
             .client
             .search_points(
-                SearchPointsBuilder::new(&self.collection, vec![0.0; 384], 10_000)
+                SearchPointsBuilder::new(&self.collection_name, vec![0.0; 384], 10_000)
                     .vector_name("bert".to_string())
                     .with_payload(true),
             )
@@ -310,7 +275,7 @@ impl QdrantVectorStore {
             .client
             .get_points(
                 qdrant_client::qdrant::GetPointsBuilder::new(
-                    &self.collection,
+                    &self.collection_name,
                     vec![VOCAB_META_ID.into()],
                 )
                 .with_payload(true),
@@ -336,7 +301,7 @@ impl QdrantVectorStore {
             self.client
                 .upsert_points(
                     qdrant_client::qdrant::UpsertPointsBuilder::new(
-                        &self.collection,
+                        &self.collection_name,
                         vec![point_struct],
                     )
                     .wait(true),
@@ -360,19 +325,17 @@ impl QdrantVectorStore {
         let vocab_guard = self.embeddings.tfidf.vocab();
 
         for text in doc_texts {
-            match self.embeddings.embed_tfidf(text) {
-                Ok(EmbeddingVariant::Sparse(indices, _)) => {
-                    let vocab = vocab_guard.read().unwrap();
-
-                    for &idx in indices.iter() {
-                        if idx < vocab.term_to_index.len() as u32 {
-                            if let Some(term) = vocab.term_to_index.get(&idx.to_string()) {
-                                new_terms.entry(term.clone().to_string()).or_insert(0);
-                            }
-                        }
+            if let Ok(EmbeddingVariant::Sparse(indices, _)) = self.embeddings.embed_tfidf(text) {
+                let vocab = vocab_guard.read().unwrap();
+                for &idx in indices.iter() {
+                    if let Some((term, _)) = vocab
+                        .term_to_index
+                        .iter()
+                        .find(|&(_, &val)| val == idx as usize)
+                    {
+                        new_terms.entry(term.clone().to_string()).or_insert(0);
                     }
                 }
-                _ => {}
             }
         }
 
@@ -430,7 +393,7 @@ impl QdrantVectorStore {
 
         self.client
             .upsert_points(
-                qdrant_client::qdrant::UpsertPointsBuilder::new(&self.collection, vec![point])
+                qdrant_client::qdrant::UpsertPointsBuilder::new(&self.collection_name, vec![point])
                     .wait(true),
             )
             .await
@@ -455,14 +418,18 @@ fn build_point(
             qdrant_client::qdrant::Vector::new_sparse(indices.clone(), values.clone())
         }
         _ => {
-            return Err(WorkerError::Qdrant("Wrong tfidf embedding in a point".to_string()));
+            return Err(WorkerError::Qdrant(
+                "Wrong tfidf embedding in a point".to_string(),
+            ));
         }
     };
 
     let bert_dense = match bert_emb {
         EmbeddingVariant::Dense(vec) => qdrant_client::qdrant::Vector::new_dense(vec.clone()),
         _ => {
-            return Err(WorkerError::Qdrant("Wrong bert embedding in a point".to_string()));
+            return Err(WorkerError::Qdrant(
+                "Wrong bert embedding in a point".to_string(),
+            ));
         }
     };
 

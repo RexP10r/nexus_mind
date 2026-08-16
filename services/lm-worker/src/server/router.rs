@@ -30,6 +30,15 @@ pub fn build_router(state: AppState) -> axum::Router {
 
     axum::Router::new()
         .route("/api/v1/chat", axum::routing::post(routes::chat))
+        .route("/api/v1/docs", axum::routing::post(routes::add_docs))
+        .route(
+            "/api/v1/docs/search/tfidf",
+            axum::routing::post(routes::search_tfidf),
+        )
+        .route(
+            "/api/v1/docs/search/bert",
+            axum::routing::post(routes::search_bert),
+        )
         .route("/health", axum::routing::get(routes::health))
         .layer(trace_layer)
         .with_state(state)

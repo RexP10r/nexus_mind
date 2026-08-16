@@ -1,5 +1,6 @@
 pub mod agent;
 pub mod conversation_doc;
+pub mod document;
 pub mod message;
 pub mod params;
 pub mod provider;
@@ -10,6 +11,9 @@ pub use agent::AgentStep;
 pub use agent::build_chat_context;
 pub use conversation_doc::ConversationDoc;
 pub use conversation_doc::ConversationEntry;
+pub use document::Document;
+pub use document::EmbeddingVariant;
+pub use document::SearchResult;
 pub use message::ChatMessage;
 pub use message::ChatRole;
 pub use message::Message;

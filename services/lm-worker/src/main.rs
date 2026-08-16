@@ -1,6 +1,7 @@
 mod agent;
 mod config;
 mod db;
+mod embeddings;
 mod error;
 mod grpc;
 mod model;
@@ -8,17 +9,25 @@ mod provider;
 mod server;
 mod tools;
 mod traits;
+mod vector;
 
 use crate::agent::rag::RAGAgent;
 use crate::config::{AgentType, Config, ProviderType};
 use crate::db::DbLayer;
+use crate::embeddings::EmbeddingProviders;
+use crate::embeddings::bert::BertProvider;
+use crate::embeddings::tfidf::TfIdfProvider;
 use crate::error::WorkerError;
 use crate::provider::grpc::GrpcLlmProvider;
 use crate::server::AppState;
 use crate::tools::calculator::CalculatorTool;
 use crate::tools::registry::InMemoryToolRegistry;
+use crate::tools::search_bert::SearchBertTool;
+use crate::tools::search_tfidf::SearchTfIdfTool;
 use crate::traits::agent::Agent;
 use crate::traits::llm::LlmProvider;
+use crate::vector::qdrant::QdrantVectorStore;
+use qdrant_client::Qdrant;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tracing_subscriber::fmt::format::FmtSpan;
@@ -73,19 +82,71 @@ async fn init_llm(config: &Config) -> Result<Arc<dyn LlmProvider>, WorkerError> 
     Ok(llm)
 }
 
+async fn init_vector_store(config: &Config) -> Result<Arc<QdrantVectorStore>, WorkerError> {
+    tracing::info!(
+        qdrant_url = %config.qdrant_url,
+        collection = %config.qdrant_collection,
+        "Connecting to Qdrant"
+    );
+
+    let client = Qdrant::from_url(&config.qdrant_url)
+        .build()
+        .map_err(|e| WorkerError::Qdrant(format!("Failed to connect to Qdrant: {}", e)))?;
+
+    let tfidf_provider = {
+        let vocab = crate::vector::qdrant::get_collection_vocab(&client, &config.qdrant_collection).await?.unwrap_or_default();
+        tracing::info!(
+            vocab_terms = vocab.term_to_index.len(),
+            total_docs = vocab.total_docs,
+            "Loaded TF-IDF vocabulary from Qdrant"
+        );
+        TfIdfProvider::new(vocab)
+    };
+
+    let bert_provider = {
+        tracing::info!(
+            model_path = %config.embedding_model_path,
+            tokenizer_path = %config.embedding_tokenizer_path,
+            "Loading BERT ONNX model"
+        );
+        BertProvider::from_files(
+            &config.embedding_model_path,
+            &config.embedding_tokenizer_path,
+        )?
+    };
+
+    let embeddings = EmbeddingProviders::new(tfidf_provider, bert_provider);
+
+    let store = QdrantVectorStore::new(
+        client,
+        config.qdrant_collection.clone(),
+        embeddings,
+    )
+    .await?;
+
+    tracing::info!("Vector store initialized");
+
+    Ok(Arc::new(store))
+}
+
 async fn init_agent(
     llm: Arc<dyn LlmProvider>,
+    vector_store: Arc<QdrantVectorStore>,
     config: &Config,
 ) -> Result<Arc<dyn Agent>, WorkerError> {
     let agent: Arc<dyn Agent> = match config.agent_type {
         AgentType::Rag => {
-            let tool_registry = InMemoryToolRegistry::from_tools(vec![Box::new(CalculatorTool)]);
+            let tool_registry = InMemoryToolRegistry::from_tools(vec![
+                Box::new(CalculatorTool),
+                Box::new(SearchTfIdfTool::new(Arc::clone(&vector_store))),
+                Box::new(SearchBertTool::new(Arc::clone(&vector_store))),
+            ]);
             let tool_count = tool_registry.tool_count();
-                tracing::info!(
-                    agent_type = "rag",
-                    max_iterations = config.max_iterations,
-                    request_timeout = config.request_timeout,
-                    tool_count,
+            tracing::info!(
+                agent_type = "rag",
+                max_iterations = config.max_iterations,
+                request_timeout = config.request_timeout,
+                tool_count,
                 "Initializing agent"
             );
             Arc::new(RAGAgent::new(
@@ -113,13 +174,15 @@ async fn main() -> anyhow::Result<(), WorkerError> {
         }
     };
 
+    let vector_store = init_vector_store(&config).await?;
     let llm = init_llm(&config).await?;
-    let agent = init_agent(Arc::clone(&llm), &config).await?;
+    let agent = init_agent(Arc::clone(&llm), Arc::clone(&vector_store), &config).await?;
 
     let state = AppState {
         agent,
         llm,
         db: Arc::new(db),
+        vector_store,
         config: config.clone(),
     };
 

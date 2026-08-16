@@ -23,4 +23,10 @@ pub enum WorkerError {
 
     #[error("Database error: {0}")]
     Db(String),
+
+    #[error("Qdrant error: {0}")]
+    Qdrant(String),
+
+    #[error("Embedding error: {0}")]
+    Embedding(String),
 }

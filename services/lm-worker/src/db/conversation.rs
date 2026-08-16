@@ -2,7 +2,6 @@ use mongodb::bson::{doc, Bson, Document};
 use mongodb::Collection;
 use serde::{de::DeserializeOwned, Deserialize};
 
-use crate::db::summary;
 use crate::error::WorkerError;
 use crate::model::{ConversationDoc, ConversationEntry};
 
@@ -87,7 +86,11 @@ impl ConversationStore {
             .await
             .map_err(|e| WorkerError::Db(format!("Mongo set_summary error: {}", e)))?;
 
-        tracing::info!(summary, conversation_id, "Atomically set conversation summary");
+        tracing::info!(
+            summary,
+            conversation_id,
+            "Atomically set conversation summary"
+        );
         Ok(())
     }
 
@@ -113,8 +116,9 @@ impl ConversationStore {
             total_messages: u32,
         }
 
-        let result: Option<CountProjection> =
-            self.get_field(conversation_id, doc! { "total_messages": 1 }).await?;
+        let result: Option<CountProjection> = self
+            .get_field(conversation_id, doc! { "total_messages": 1 })
+            .await?;
 
         Ok(result.map(|r| r.total_messages).unwrap_or(0))
     }
@@ -129,8 +133,9 @@ impl ConversationStore {
             summary: Option<String>,
         }
 
-        let result: Option<SummaryProjection> =
-            self.get_field(conversation_id, doc! { "summary": 1 }).await?;
+        let result: Option<SummaryProjection> = self
+            .get_field(conversation_id, doc! { "summary": 1 })
+            .await?;
 
         Ok(result.and_then(|r| r.summary))
     }

@@ -54,6 +54,18 @@ pub struct Config {
 
     #[arg(env = "REDIS_TTL_SECS", long)]
     pub redis_ttl_secs: u64,
+
+    #[arg(env = "QDRANT_URL", long, default_value = "http://localhost:6334")]
+    pub qdrant_url: String,
+
+    #[arg(env = "QDRANT_COLLECTION", long, default_value = "nexus_docs")]
+    pub qdrant_collection: String,
+
+    #[arg(env = "EMBEDDING_MODEL_PATH", long, default_value = "models/model.onnx")]
+    pub embedding_model_path: String,
+
+    #[arg(env = "EMBEDDING_TOKENIZER_PATH", long, default_value = "models/tokenizer.json")]
+    pub embedding_tokenizer_path: String,
 }
 
 impl Config {

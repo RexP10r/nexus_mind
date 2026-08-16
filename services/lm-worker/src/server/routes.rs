@@ -3,9 +3,19 @@ use axum::http::StatusCode;
 use axum::Json;
 use std::sync::Arc;
 
-use crate::model::{AgentResult, ChatRole, GenerationParams, Message};
-use crate::server::dto::{ChatRequest, ChatResponse, ErrorResponse, HealthResponse};
+use crate::model::{AgentResult, ChatRole, Document, GenerationParams, Message};
+use crate::server::dto::{
+    AddDocsRequest, AddDocsResponse, ChatRequest, ChatResponse, ErrorResponse, HealthResponse,
+    SearchRequest, SearchResponse,
+};
 use crate::server::AppState;
+
+fn doc_id(text: &str) -> String {
+    use std::hash::{DefaultHasher, Hash, Hasher};
+    let mut h = DefaultHasher::new();
+    text.hash(&mut h);
+    format!("{:x}", h.finish())
+}
 
 struct ChatContext {
     conversation_id: Arc<String>,
@@ -156,4 +166,147 @@ pub async fn health(State(_state): State<AppState>) -> (StatusCode, Json<serde_j
         status: "ok".into(),
     };
     (StatusCode::OK, Json(serde_json::to_value(&health).unwrap()))
+}
+
+pub async fn add_docs(
+    State(state): State<AppState>,
+    Json(req): Json<AddDocsRequest>,
+) -> (StatusCode, Json<serde_json::Value>) {
+    if req.documents.is_empty() {
+        let err = ErrorResponse {
+            error: "No documents provided".to_string(),
+            status: "error".to_string(),
+        };
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::to_value(&err).unwrap()),
+        );
+    }
+
+    let docs: Vec<Document> = req
+        .documents
+        .into_iter()
+        .map(|d| Document {
+            id: doc_id(&d.text),
+            text: d.text,
+        })
+        .collect();
+
+    let count = docs.len();
+    let added_count = match state.vector_store.add_docs(&docs).await {
+        Ok(added) => {
+            tracing::info!(added, requested = count, "Documents added via API");
+            added
+        }
+        Err(e) => {
+            tracing::error!(error = %e, "Failed to add documents");
+            let err = ErrorResponse {
+                error: e.to_string(),
+                status: "error".to_string(),
+            };
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::to_value(&err).unwrap()),
+            );
+        }
+    };
+
+    let docs_texts = docs.iter().map(|d| d.text.clone()).collect::<Vec<_>>();
+    let store_cloned = state.vector_store.clone();
+    tokio::spawn(async move {
+        if let Err(e) = store_cloned
+            .update_vocab_with_new_docs(&docs_texts)
+            .await
+        {
+            tracing::error!(error = %e, "Vocab update failed (non-critical)")
+        }
+    });
+
+    tokio::spawn(async move {
+        match state.vector_store.recompute_all_vectors().await {
+            Ok(n) => tracing::info!(count = n, "Sparse vectors recomputed"),
+            Err(e) => tracing::error!(error = %e, "Recompute failed (non-critical)"),
+        }
+    });
+
+    let resp = AddDocsResponse { added: added_count };
+    (StatusCode::OK, Json(serde_json::to_value(&resp).unwrap()))
+}
+
+pub async fn search_tfidf(
+    State(state): State<AppState>,
+    Json(req): Json<SearchRequest>,
+) -> (StatusCode, Json<serde_json::Value>) {
+    if req.query.is_empty() {
+        let err = ErrorResponse {
+            error: "Query must not be empty".to_string(),
+            status: "error".to_string(),
+        };
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::to_value(&err).unwrap()),
+        );
+    }
+
+    match state.vector_store.search_tfidf(&req.query, req.limit).await {
+        Ok(results) => {
+            tracing::info!(
+                query = %req.query,
+                results_count = results.len(),
+                "TF-IDF search completed"
+            );
+            let resp = SearchResponse { results };
+            (StatusCode::OK, Json(serde_json::to_value(&resp).unwrap()))
+        }
+        Err(e) => {
+            tracing::error!(error = %e, "TF-IDF search failed");
+            let err = ErrorResponse {
+                error: e.to_string(),
+                status: "error".to_string(),
+            };
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::to_value(&err).unwrap()),
+            )
+        }
+    }
+}
+
+pub async fn search_bert(
+    State(state): State<AppState>,
+    Json(req): Json<SearchRequest>,
+) -> (StatusCode, Json<serde_json::Value>) {
+    if req.query.is_empty() {
+        let err = ErrorResponse {
+            error: "Query must not be empty".to_string(),
+            status: "error".to_string(),
+        };
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::to_value(&err).unwrap()),
+        );
+    }
+
+    match state.vector_store.search_bert(&req.query, req.limit).await {
+        Ok(results) => {
+            tracing::info!(
+                query = %req.query,
+                results_count = results.len(),
+                "BERT search completed"
+            );
+            let resp = SearchResponse { results };
+            (StatusCode::OK, Json(serde_json::to_value(&resp).unwrap()))
+        }
+        Err(e) => {
+            tracing::error!(error = %e, "BERT search failed");
+            let err = ErrorResponse {
+                error: e.to_string(),
+                status: "error".to_string(),
+            };
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::to_value(&err).unwrap()),
+            )
+        }
+    }
 }

@@ -225,7 +225,7 @@ pub async fn add_docs(
     tokio::spawn(async move {
         match state.vector_store.recompute_all_vectors().await {
             Ok(n) => tracing::info!(count = n, "Sparse vectors recomputed"),
-            Err(e) => tracing::error!(error = %e, "Recompute failed (non-critical)"),
+            Err(e) => tracing::error!(error = %e, "Recompute failed"),
         }
     });
 

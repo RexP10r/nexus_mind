@@ -1,5 +1,5 @@
 use std::cmp::max;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use qdrant_client::qdrant::vectors_config::Config;
 use qdrant_client::qdrant::{
@@ -14,8 +14,6 @@ use crate::embeddings::EmbeddingProviders;
 use crate::embeddings::tfidf::VocabState;
 use crate::error::WorkerError;
 use crate::model::{Document, EmbeddingVariant, SearchResult};
-
-const VOCAB_META_ID: u64 = 0;
 
 pub async fn get_collection_vocab(
     client: &Qdrant,
@@ -52,6 +50,9 @@ pub struct QdrantVectorStore {
     collection_name: String,
     embeddings: EmbeddingProviders,
 }
+
+const TFIDF_VOCAB_METADATA_KEY: &str = "tfidf_vocab";
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct QdrantMeta {
     tfidf_vocab: VocabState,
@@ -276,7 +277,7 @@ impl QdrantVectorStore {
             .get_points(
                 qdrant_client::qdrant::GetPointsBuilder::new(
                     &self.collection_name,
-                    vec![VOCAB_META_ID.into()],
+                    vec![doc_id.into()],
                 )
                 .with_payload(true),
             )
@@ -321,83 +322,140 @@ impl QdrantVectorStore {
             return Ok(());
         }
 
-        let mut new_terms: HashMap<String, u64> = HashMap::new();
-        let vocab_guard = self.embeddings.tfidf.vocab();
+        let mut metadata = self.get_collection_metadata_map().await?;
 
-        for text in doc_texts {
-            if let Ok(EmbeddingVariant::Sparse(indices, _)) = self.embeddings.embed_tfidf(text) {
-                let vocab = vocab_guard.read().unwrap();
-                for &idx in indices.iter() {
-                    if let Some((term, _)) = vocab
-                        .term_to_index
-                        .iter()
-                        .find(|&(_, &val)| val == idx as usize)
-                    {
-                        new_terms.entry(term.clone().to_string()).or_insert(0);
+        if let Some(persisted_vocab) = Self::vocab_from_metadata(&metadata)? {
+            *self.embeddings.tfidf.vocab().write().unwrap() = persisted_vocab;
+        }
+
+        let updated_vocab = {
+            let vocab_arc = self.embeddings.tfidf.vocab();
+            let mut local_vocab = vocab_arc.write().unwrap();
+
+            let mut next_index = local_vocab
+                .term_to_index
+                .values()
+                .copied()
+                .max()
+                .map(|idx| idx.saturating_add(1))
+                .unwrap_or(0);
+
+            let mut processed_docs: u64 = 0;
+
+            for text in doc_texts {
+                let terms = crate::embeddings::tfidf::tokenize(text);
+                if terms.is_empty() {
+                    continue;
+                }
+
+                processed_docs = processed_docs.saturating_add(1);
+
+                let unique_terms: HashSet<&String> = terms.iter().collect();
+
+                for term in unique_terms {
+                    let idx = if let Some(&idx) = local_vocab.term_to_index.get(term) {
+                        idx
+                    } else {
+                        let idx = next_index;
+                        next_index = next_index.saturating_add(1);
+                        local_vocab.term_to_index.insert(term.clone(), idx);
+                        idx
+                    };
+
+                    if idx >= local_vocab.term_doc_count.len() {
+                        local_vocab.term_doc_count.resize(idx.saturating_add(1), 0);
                     }
+
+                    local_vocab.term_doc_count[idx] =
+                        local_vocab.term_doc_count[idx].saturating_add(1);
+                }
+            }
+
+            local_vocab.total_docs = local_vocab.total_docs.saturating_add(processed_docs);
+
+            local_vocab.clone()
+        };
+
+        // Serialize updated vocab through QdrantMeta so the shape stays the same
+        // as during collection creation.
+        let meta = QdrantMeta {
+            tfidf_vocab: updated_vocab,
+        };
+
+        let meta_value = serde_json::to_value(&meta)
+            .map_err(|e| WorkerError::Qdrant(format!("Failed to serialize QdrantMeta: {}", e)))?;
+
+        let serde_json::Value::Object(meta_map) = meta_value else {
+            return Err(WorkerError::Qdrant(
+                "Serialized QdrantMeta was not a JSON object".to_string(),
+            ));
+        };
+
+        for (key, value) in meta_map {
+            metadata.insert(key, value);
+        }
+
+        self.update_collection_metadata(metadata).await?;
+
+        Ok(())
+    }
+
+    async fn get_collection_metadata_map(
+        &self,
+    ) -> Result<serde_json::Map<String, serde_json::Value>, WorkerError> {
+        let info = self
+            .client
+            .collection_info(&self.collection_name)
+            .await
+            .map_err(|e| WorkerError::Qdrant(format!("Failed to get collection info: {}", e)))?;
+
+        if let Some(res) = info.result {
+            if let Some(config) = res.config {
+                if !config.metadata.is_empty() {
+                    return Ok(config
+                        .metadata
+                        .into_iter()
+                        .map(|(k, v)| (k, v.into_json()))
+                        .collect());
                 }
             }
         }
 
-        for (term, count) in &new_terms {
-            let mut vocab = vocab_guard.write().unwrap();
+        Ok(serde_json::Map::new())
+    }
 
-            if !vocab.term_to_index.contains_key(term) {
-                let idx = vocab.term_to_index.len();
-                vocab.term_to_index.insert(term.clone(), idx);
-                vocab.term_doc_count.push(*count as u64 + 1u64);
-            } else {
-                let idx = *vocab.term_to_index.get(term).unwrap() as usize;
-                vocab.term_doc_count[idx] += count;
-            }
-        }
+    fn vocab_from_metadata(
+        metadata: &serde_json::Map<String, serde_json::Value>,
+    ) -> Result<Option<VocabState>, WorkerError> {
+        let Some(vocab_value) = metadata.get(TFIDF_VOCAB_METADATA_KEY) else {
+            return Ok(None);
+        };
 
-        self.embeddings.tfidf.vocab().write().unwrap().total_docs += doc_texts.len() as u64;
+        let vocab: VocabState = serde_json::from_value(vocab_value.clone()).map_err(|e| {
+            WorkerError::Qdrant(format!(
+                "Failed to parse tfidf_vocab from collection metadata: {}",
+                e
+            ))
+        })?;
 
-        let terms_map: HashMap<String, u64> = self
-            .embeddings
-            .tfidf
-            .vocab()
-            .read()
-            .unwrap()
-            .term_to_index
-            .iter()
-            .map(|(term, &idx)| {
-                (
-                    term.clone(),
-                    self.embeddings.tfidf.vocab().read().unwrap().term_doc_count[idx],
-                )
-            })
-            .collect();
+        Ok(Some(vocab))
+    }
 
-        let payload: Payload = serde_json::json!({
-            "terms": terms_map,
-            "total_docs": self.embeddings.tfidf.vocab().read().unwrap().total_docs,
-        })
-        .try_into()
-        .map_err(|e| WorkerError::Qdrant(format!("Failed to build vocab meta: {}", e)))?;
-
-        let point = PointStruct::new(
-            VOCAB_META_ID,
-            NamedVectors::default()
-                .add_vector(
-                    "tfidf",
-                    qdrant_client::qdrant::Vector::new_sparse(vec![], vec![]),
-                )
-                .add_vector(
-                    "bert",
-                    qdrant_client::qdrant::Vector::new_dense(vec![0.0_f32; 384]),
-                ),
-            payload,
-        );
+    async fn update_collection_metadata(
+        &self,
+        metadata: serde_json::Map<String, serde_json::Value>,
+    ) -> Result<(), WorkerError> {
+        let metadata_map: HashMap<String, serde_json::Value> = metadata.into_iter().collect();
 
         self.client
-            .upsert_points(
-                qdrant_client::qdrant::UpsertPointsBuilder::new(&self.collection_name, vec![point])
-                    .wait(true),
+            .update_collection(
+                qdrant_client::qdrant::UpdateCollectionBuilder::new(&self.collection_name)
+                    .metadata(metadata_map),
             )
             .await
-            .map_err(|e| WorkerError::Qdrant(format!("Failed to upsert points: {}", e)))?;
+            .map_err(|e| {
+                WorkerError::Qdrant(format!("Failed to update collection metadata: {}", e))
+            })?;
 
         Ok(())
     }

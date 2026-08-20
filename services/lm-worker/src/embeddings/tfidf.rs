@@ -71,7 +71,7 @@ impl TfIdfProvider {
     }
 }
 
-fn tokenize(text: &str) -> Vec<String> {
+pub fn tokenize(text: &str) -> Vec<String> {
     let stemmer = Stemmer::create(Algorithm::English);
     text.unicode_words()
         .map(|w| w.to_lowercase())

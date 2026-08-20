@@ -215,103 +215,123 @@ impl QdrantVectorStore {
             .collect())
     }
 
-    async fn list_all_document_ids(&self) -> Result<Vec<String>, WorkerError> {
-        let results = self
-            .client
-            .search_points(
-                SearchPointsBuilder::new(&self.collection_name, vec![0.0; 384], 10_000)
-                    .vector_name("bert".to_string())
-                    .with_payload(true),
-            )
-            .await
-            .map_err(|e| WorkerError::Qdrant(format!("Failed to get document points: {}", e)))?;
-
-        Ok(results
-            .result
-            .into_iter()
-            .map(|p| format!("{:?}", p.id))
-            .collect())
-    }
-
     pub async fn recompute_all_vectors(&self) -> Result<u64, WorkerError> {
-        let doc_ids = self.list_all_document_ids().await?;
+        const SCROLL_BATCH_SIZE: u32 = 100;
+        let mut all_points: Vec<qdrant_client::qdrant::RetrievedPoint> = Vec::new();
+        let mut offset: Option<qdrant_client::qdrant::PointId> = None;
 
-        if doc_ids.is_empty() {
-            return Ok(0);
-        }
+        loop {
+            let mut scroll_builder =
+                qdrant_client::qdrant::ScrollPointsBuilder::new(&self.collection_name)
+                    .limit(SCROLL_BATCH_SIZE)
+                    .with_payload(true)
+                    .with_vectors(true);
 
-        tracing::info!(count = doc_ids.len(), "Starting full vector recomputation");
+            if let Some(off) = offset {
+                scroll_builder = scroll_builder.offset(off);
+            }
 
-        let mut success_count = 0u64;
-        let mut failure_count = 0usize;
-        const MAX_FAILURES: usize = 10;
+            let response = self
+                .client
+                .scroll(scroll_builder)
+                .await
+                .map_err(|e| WorkerError::Qdrant(format!("Failed to scroll points: {}", e)))?;
 
-        for id in &doc_ids {
-            if failure_count >= MAX_FAILURES {
-                tracing::error!(failures = failure_count, "Stopping recomputation");
+            let batch = response.result;
+            if batch.is_empty() {
                 break;
             }
 
-            match self.recompute_single_vector(id).await {
-                Ok(_) => success_count += 1,
-                Err(e) => {
-                    tracing::error!(id = %id, error = %e, "Failed to recompute vector");
-                    failure_count += 1;
-                }
+            all_points.extend(batch);
+            offset = response.next_page_offset;
+
+            if offset.is_none() {
+                break;
             }
         }
 
-        if failure_count >= MAX_FAILURES {
-            return Err(WorkerError::Qdrant(format!(
-                "Stopped after {} failures",
-                failure_count
-            )));
+        if all_points.is_empty() {
+            return Ok(0);
         }
 
-        Ok(success_count)
-    }
+        tracing::info!(
+            count = all_points.len(),
+            "Starting TF-IDF vector recomputation"
+        );
 
-    async fn recompute_single_vector(&self, doc_id: &str) -> Result<(), WorkerError> {
-        let results = self
-            .client
-            .get_points(
-                qdrant_client::qdrant::GetPointsBuilder::new(
-                    &self.collection_name,
-                    vec![doc_id.into()],
-                )
-                .with_payload(true),
-            )
-            .await
-            .map_err(|e| WorkerError::Qdrant(format!("Failed to get points: {}", e)))?;
+        let mut updated_points = Vec::with_capacity(all_points.len());
 
-        if let Some(point) = results.result.into_iter().next() {
-            let text = extract_text(&point.payload);
+        for retrieved in all_points {
+            let Some(id) = retrieved.id else {
+                continue;
+            };
+
+            let text = extract_text(&retrieved.payload);
+            if text.is_empty() {
+                continue;
+            }
 
             let tfidf_emb = self.embeddings.embed_tfidf(&text)?;
-            let bert_emb = self.embeddings.embed_bert(&text)?;
 
-            let point_struct = build_point(
-                &Document {
-                    id: doc_id.to_string(),
-                    text,
-                },
-                &tfidf_emb,
-                &bert_emb,
-            )?;
+            let bert_vec = retrieved
+                .vectors
+                .as_ref()
+                .and_then(|v| v.get_vector_by_name("bert"))
+                .and_then(|vec| match vec {
+                    qdrant_client::qdrant::vector_output::Vector::Dense(dense) => Some(dense.data),
+                    _ => None,
+                });
 
-            self.client
-                .upsert_points(
-                    qdrant_client::qdrant::UpsertPointsBuilder::new(
-                        &self.collection_name,
-                        vec![point_struct],
-                    )
-                    .wait(true),
-                )
-                .await
-                .map_err(|e| WorkerError::Qdrant(format!("Failed to upsert points: {}", e)))?;
+            let Some(bert_data) = bert_vec else {
+                tracing::warn!(point_id = ?id, "Missing bert vector, skipping");
+                continue;
+            };
+
+            let point_id: u64 = match &id.point_id_options {
+                Some(qdrant_client::qdrant::point_id::PointIdOptions::Num(n)) => *n,
+                _ => continue,
+            };
+
+            let payload: Payload = serde_json::json!({"text": text})
+                .try_into()
+                .map_err(|e| WorkerError::Qdrant(format!("Failed to build payload: {}", e)))?;
+
+            let tfidf_sparse = match &tfidf_emb {
+                EmbeddingVariant::Sparse(indices, values) => {
+                    qdrant_client::qdrant::Vector::new_sparse(indices.clone(), values.clone())
+                }
+                _ => {
+                    return Err(WorkerError::Qdrant(
+                        "Wrong tfidf embedding variant".to_string(),
+                    ));
+                }
+            };
+
+            let bert_dense = qdrant_client::qdrant::Vector::new_dense(bert_data);
+
+            let named_vectors = NamedVectors::default()
+                .add_vector("tfidf", tfidf_sparse)
+                .add_vector("bert", bert_dense);
+
+            updated_points.push(PointStruct::new(point_id, named_vectors, payload));
         }
 
-        Ok(())
+        if updated_points.is_empty() {
+            return Ok(0);
+        }
+
+        self.client
+            .upsert_points(
+                qdrant_client::qdrant::UpsertPointsBuilder::new(
+                    &self.collection_name,
+                    updated_points.clone(),
+                )
+                .wait(true),
+            )
+            .await
+            .map_err(|e| WorkerError::Qdrant(format!("Failed to upsert points: {}", e)))?;
+
+        Ok(updated_points.len() as u64)
     }
 
     pub async fn update_vocab_with_new_docs(

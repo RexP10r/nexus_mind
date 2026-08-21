@@ -45,6 +45,45 @@ pub async fn get_collection_vocab(
     Ok(None)
 }
 
+pub async fn ensure_collection(client: &Qdrant, collection_name: &str) -> Result<(), WorkerError> {
+    let exists = 
+        client
+        .collection_exists(collection_name)
+        .await
+        .map_err(|e| WorkerError::Qdrant(format!("Failed to check if colletion exists: {}", e)))?;
+
+    if exists {
+        tracing::info!("Existing collection found");
+        return Ok(());
+    }
+    tracing::info!("Existing collection not found, creating a new one...");
+
+    let mut vectors_config = VectorsConfigBuilder::new();
+    vectors_config.add_named_vector_params("bert", VectorParamsBuilder::new(384, Distance::Cosine));
+
+    let mut sparse_config = SparseVectorsConfigBuilder::new();
+    sparse_config.add_named_vector_params("tfidf", SparseVectorParamsBuilder::default());
+    let metadata_value: HashMap<String, serde_json::Value> =
+        serde_json::from_value(serde_json::to_value(&QdrantMeta::default()).unwrap()).unwrap();
+
+    client
+        .create_collection(
+            CreateCollectionBuilder::new(collection_name)
+                .vectors_config(vectors_config)
+                .sparse_vectors_config(sparse_config)
+                .metadata(metadata_value),
+        )
+        .await
+        .map_err(|e| WorkerError::Qdrant(format!("Failed to create collection: {}", e)))?;
+
+    tracing::info!(
+        collection = %collection_name,
+        "Created Qdrant collection with named vectors (bert + tfidf)"
+    );
+
+    Ok(())
+}
+
 pub struct QdrantVectorStore {
     client: Qdrant,
     collection_name: String,
@@ -76,50 +115,7 @@ impl QdrantVectorStore {
             collection_name,
             embeddings,
         };
-        store.ensure_collection().await?;
         Ok(store)
-    }
-
-    async fn ensure_collection(&self) -> Result<(), WorkerError> {
-        let exists = self
-            .client
-            .collection_exists(self.collection_name.clone())
-            .await
-            .map_err(|e| {
-                WorkerError::Qdrant(format!("Failed to check if colletion exists: {}", e))
-            })?;
-
-        if exists {
-            tracing::info!("Existing collection found");
-            return Ok(());
-        }
-        tracing::info!("Existing collection not found, creating a new one...");
-
-        let mut vectors_config = VectorsConfigBuilder::new();
-        vectors_config
-            .add_named_vector_params("bert", VectorParamsBuilder::new(384, Distance::Cosine));
-
-        let mut sparse_config = SparseVectorsConfigBuilder::new();
-        sparse_config.add_named_vector_params("tfidf", SparseVectorParamsBuilder::default());
-        let metadata_value: HashMap<String, serde_json::Value> =
-            serde_json::from_value(serde_json::to_value(&QdrantMeta::default()).unwrap()).unwrap();
-
-        self.client
-            .create_collection(
-                CreateCollectionBuilder::new(&self.collection_name)
-                    .vectors_config(vectors_config)
-                    .sparse_vectors_config(sparse_config)
-                    .metadata(metadata_value),
-            )
-            .await
-            .map_err(|e| WorkerError::Qdrant(format!("Failed to create collection: {}", e)))?;
-
-        tracing::info!(
-            collection = %self.collection_name,
-            "Created Qdrant collection with named vectors (bert + tfidf)"
-        );
-
-        Ok(())
     }
 
     pub async fn add_docs(&self, docs: &[Document]) -> Result<u64, WorkerError> {

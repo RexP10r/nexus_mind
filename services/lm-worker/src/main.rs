@@ -26,7 +26,7 @@ use crate::tools::search_bert::SearchBertTool;
 use crate::tools::search_tfidf::SearchTfIdfTool;
 use crate::traits::agent::Agent;
 use crate::traits::llm::LlmProvider;
-use crate::vector::qdrant::QdrantVectorStore;
+use crate::vector::qdrant::{QdrantVectorStore, ensure_collection};
 use qdrant_client::Qdrant;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -85,16 +85,18 @@ async fn init_llm(config: &Config) -> Result<Arc<dyn LlmProvider>, WorkerError> 
 async fn init_vector_store(config: &Config) -> Result<Arc<QdrantVectorStore>, WorkerError> {
     tracing::info!(
         qdrant_url = %config.qdrant_url,
-        collection = %config.qdrant_collection,
+        collection = %config.qdrant_collection_name,
         "Connecting to Qdrant"
     );
 
     let client = Qdrant::from_url(&config.qdrant_url)
         .build()
         .map_err(|e| WorkerError::Qdrant(format!("Failed to connect to Qdrant: {}", e)))?;
+    
+    let _ = ensure_collection(&client, &config.qdrant_collection_name).await?;
 
     let tfidf_provider = {
-        let vocab = crate::vector::qdrant::get_collection_vocab(&client, &config.qdrant_collection).await?.unwrap_or_default();
+        let vocab = crate::vector::qdrant::get_collection_vocab(&client, &config.qdrant_collection_name).await?.unwrap_or_default();
         tracing::info!(
             vocab_terms = vocab.term_to_index.len(),
             total_docs = vocab.total_docs,
@@ -119,7 +121,7 @@ async fn init_vector_store(config: &Config) -> Result<Arc<QdrantVectorStore>, Wo
 
     let store = QdrantVectorStore::new(
         client,
-        config.qdrant_collection.clone(),
+        config.qdrant_collection_name.clone(),
         embeddings,
     )
     .await?;

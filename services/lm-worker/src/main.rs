@@ -30,12 +30,12 @@ use crate::vector::qdrant::{QdrantVectorStore, ensure_collection};
 use qdrant_client::Qdrant;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use tracing_subscriber::fmt::format::FmtSpan;
 use tracing_subscriber::EnvFilter;
+use tracing_subscriber::fmt::format::FmtSpan;
 
-fn init_tracing(config: &Config) {
+fn init_tracing(config: &Config) -> Result<(), WorkerError> {
     let env_filter =
-        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(&config.log_level));
+        EnvFilter::try_from_default_env().map_err(|e| WorkerError::Environment(e.to_string()))?;
 
     let subscriber = tracing_subscriber::fmt()
         .with_env_filter(env_filter)
@@ -49,6 +49,7 @@ fn init_tracing(config: &Config) {
     }
 
     tracing_log::LogTracer::init().ok();
+    Ok(())
 }
 
 async fn verify_provider(provider: &Arc<dyn LlmProvider>) -> Result<(), WorkerError> {
@@ -92,11 +93,14 @@ async fn init_vector_store(config: &Config) -> Result<Arc<QdrantVectorStore>, Wo
     let client = Qdrant::from_url(&config.qdrant_url)
         .build()
         .map_err(|e| WorkerError::Qdrant(format!("Failed to connect to Qdrant: {}", e)))?;
-    
+
     let _ = ensure_collection(&client, &config.qdrant_collection_name).await?;
 
     let tfidf_provider = {
-        let vocab = crate::vector::qdrant::get_collection_vocab(&client, &config.qdrant_collection_name).await?.unwrap_or_default();
+        let vocab =
+            crate::vector::qdrant::get_collection_vocab(&client, &config.qdrant_collection_name)
+                .await?
+                .unwrap_or_default();
         tracing::info!(
             vocab_terms = vocab.term_to_index.len(),
             total_docs = vocab.total_docs,
@@ -111,20 +115,13 @@ async fn init_vector_store(config: &Config) -> Result<Arc<QdrantVectorStore>, Wo
             tokenizer_path = %config.embedding_tokenizer_path,
             "Loading BERT ONNX model"
         );
-        BertProvider::from_files(
-            &config.embedding_model_path,
-            &config.embedding_tokenizer_path,
-        )?
+        BertProvider::from_files(&config)?
     };
 
     let embeddings = EmbeddingProviders::new(tfidf_provider, bert_provider);
 
-    let store = QdrantVectorStore::new(
-        client,
-        config.qdrant_collection_name.clone(),
-        embeddings,
-    )
-    .await?;
+    let store =
+        QdrantVectorStore::new(client, config.qdrant_collection_name.clone(), embeddings).await?;
 
     tracing::info!("Vector store initialized");
 
@@ -166,7 +163,7 @@ async fn init_agent(
 async fn main() -> anyhow::Result<(), WorkerError> {
     dotenvy::dotenv().ok();
     let config = Config::from_env();
-    init_tracing(&config);
+    let _ = init_tracing(&config);
 
     let db = match DbLayer::new(&config).await {
         Ok(db) => db,

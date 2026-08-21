@@ -1,4 +1,7 @@
 use clap::Parser;
+use ort::logging::LogLevel;
+
+use crate::error::WorkerError;
 
 #[derive(clap::ValueEnum, Clone, Debug)]
 pub enum ProviderType {
@@ -18,9 +21,6 @@ pub struct Config {
 
     #[arg(env = "HTTP_PORT", long)]
     pub http_port: u16,
-
-    #[arg(env = "LOG_LEVEL", long)]
-    pub log_level: String,
 
     #[arg(env = "LOG_JSON", long)]
     pub log_json: bool,
@@ -66,10 +66,27 @@ pub struct Config {
 
     #[arg(env = "EMBEDDING_TOKENIZER_PATH", long)]
     pub embedding_tokenizer_path: String,
+
+    #[arg(env = "ONNX_LOG_LEVEL", long)]
+    pub onnx_log_level: String,
 }
 
 impl Config {
     pub fn from_env() -> Self {
         Self::parse()
+    }
+}
+pub fn get_onnx_log_level(config: &Config) -> Result<LogLevel, WorkerError> {
+    match config.onnx_log_level.as_str() {
+        "verbose" => Ok(LogLevel::Verbose),
+        "info" => Ok(LogLevel::Info),
+        "warning" => Ok(LogLevel::Warning),
+        "error" => Ok(LogLevel::Error),
+        "fatal" => Ok(LogLevel::Fatal),
+        _ => {
+            Err(WorkerError::Environment(
+                "Failed to parse onnx log level. Available options: verbose, info, warning, error, fatal".to_string(),
+            ))
+        }
     }
 }

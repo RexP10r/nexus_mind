@@ -3,6 +3,7 @@ use ort::value::Tensor;
 use parking_lot::Mutex;
 use tokenizers::Tokenizer;
 
+use crate::config::{Config, get_onnx_log_level};
 use crate::error::WorkerError;
 use crate::model::EmbeddingVariant;
 
@@ -12,9 +13,17 @@ pub struct BertProvider {
 }
 
 impl BertProvider {
-    pub fn from_files(model_path: &str, tokenizer_path: &str) -> Result<Self, WorkerError> {
+    pub fn from_files(config: &Config) -> Result<Self, WorkerError> {
+        let model_path = config.embedding_model_path.as_str();
+        let tokenizer_path = config.embedding_tokenizer_path.as_str();
+        let log_level = get_onnx_log_level(config)?;
+
         let session = Session::builder()
-            .map_err(|e| WorkerError::Embedding(format!("Failed to create ORT session builder: {}", e)))?
+            .map_err(|e| {
+                WorkerError::Embedding(format!("Failed to create ORT session builder: {}", e))
+            })?
+            .with_log_level(log_level)
+            .map_err(|e| WorkerError::Embedding(format!("Failed to set ORT log level: {}", e)))?
             .commit_from_file(model_path)
             .map_err(|e| {
                 WorkerError::Embedding(format!(
@@ -43,9 +52,10 @@ impl BertProvider {
     }
 
     pub fn embed(&self, text: &str) -> Result<EmbeddingVariant, WorkerError> {
-        let encoding = self.tokenizer.encode(text, false).map_err(|e| {
-            WorkerError::Embedding(format!("Tokenization failed: {}", e))
-        })?;
+        let encoding = self
+            .tokenizer
+            .encode(text, false)
+            .map_err(|e| WorkerError::Embedding(format!("Tokenization failed: {}", e)))?;
 
         let token_ids: Vec<i64> = encoding.get_ids().iter().map(|&id| id as i64).collect();
         let attention_mask: Vec<i64> = encoding
@@ -59,8 +69,10 @@ impl BertProvider {
         let input_tensor = Tensor::from_array(([1_usize, seq_len], token_ids))
             .map_err(|e| WorkerError::Embedding(format!("Failed to create input_ids: {}", e)))?;
 
-        let mask_tensor = Tensor::from_array(([1_usize, seq_len], attention_mask))
-            .map_err(|e| WorkerError::Embedding(format!("Failed to create attention_mask: {}", e)))?;
+        let mask_tensor =
+            Tensor::from_array(([1_usize, seq_len], attention_mask)).map_err(|e| {
+                WorkerError::Embedding(format!("Failed to create attention_mask: {}", e))
+            })?;
 
         let mut session = self.session.lock();
         let outputs = session

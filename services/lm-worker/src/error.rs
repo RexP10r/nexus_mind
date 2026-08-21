@@ -29,4 +29,7 @@ pub enum WorkerError {
 
     #[error("Embedding error: {0}")]
     Embedding(String),
+
+    #[error("Env error: {0}")]
+    Environment(String)
 }

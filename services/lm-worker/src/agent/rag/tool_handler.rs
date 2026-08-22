@@ -25,13 +25,14 @@ impl<'a> ToolHandler<'a> {
         format!("Tool '{}' not found. Available: {}", tool_name, available)
     }
 
-    pub(crate) fn execute(&self, tool_name: &str, tool_input: &str) -> String {
+    pub(crate) async fn execute(&self, tool_name: &str, tool_input: &str) -> String {
         self.registry
             .execute(tool_name, tool_input)
+            .await
             .unwrap_or_else(|| self.tool_not_found_message(tool_name))
     }
 
-    pub(crate) fn execute_with_state(
+    pub(crate) async fn execute_with_state(
         &self,
         state: &mut AgentState,
         thought: String,
@@ -57,7 +58,7 @@ impl<'a> ToolHandler<'a> {
         }
 
         let start = std::time::Instant::now();
-        let observation = self.execute(&tool_name, &tool_input);
+        let observation = self.execute(&tool_name, &tool_input).await;
         let elapsed_ms = start.elapsed().as_millis();
 
         tracing::debug!(

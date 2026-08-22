@@ -1,7 +1,10 @@
+use async_trait::async_trait;
+
 use crate::traits::tool::Tool;
 
 pub struct CalculatorTool;
 
+#[async_trait]
 impl Tool for CalculatorTool {
     fn name(&self) -> &str {
         "calculate"
@@ -11,7 +14,7 @@ impl Tool for CalculatorTool {
         "evaluates a mathematical expression (supports +, -, *, /, parentheses, functions)"
     }
 
-    fn execute(&self, input: &str) -> String {
+    async fn execute(&self, input: &str) -> String {
         match meval::eval_str(input) {
             Ok(val) => {
                 let result = val.to_string();

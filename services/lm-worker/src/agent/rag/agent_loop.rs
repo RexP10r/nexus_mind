@@ -51,7 +51,7 @@ impl<'a> AgentLoop<'a> {
 
             let response_text = self.call_llm(&mut state, &system_prompt, params).await?;
 
-            if let Some(result) = self.process_llm_response(&mut state, &response_text) {
+            if let Some(result) = self.process_llm_response(&mut state, &response_text).await {
                 return Ok(result);
             }
         }
@@ -123,14 +123,16 @@ impl<'a> AgentLoop<'a> {
         Ok(response.text)
     }
 
-    fn process_llm_response(
+    async fn process_llm_response(
         &self,
         state: &mut AgentState,
         text: &str,
     ) -> Option<AgentResult> {
         match extract_llm_response(text) {
             Ok(llm_response) => {
-                if let Some(result) = ResponseHandler::handle(state, llm_response, &self.tool_handler) {
+                if let Some(result) =
+                    ResponseHandler::handle(state, llm_response, &self.tool_handler).await
+                {
                     return Some(result);
                 }
                 None

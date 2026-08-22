@@ -6,10 +6,10 @@ use crate::model::{AgentAction, AgentResult};
 pub(crate) struct ResponseHandler;
 
 impl ResponseHandler {
-    pub(crate) fn handle(
+    pub(crate) async fn handle(
         state: &mut AgentState,
         llm_response: AgentResponse,
-        tool_handler: &ToolHandler,
+        tool_handler: &ToolHandler<'_>,
     ) -> Option<AgentResult> {
         match llm_response.action {
             AgentAction::ExecuteTool {
@@ -21,7 +21,9 @@ impl ResponseHandler {
                     tool_name = %tool_name,
                     "Agent decided to use tool"
                 );
-                tool_handler.execute_with_state(state, llm_response.thought, tool_name, tool_input);
+                tool_handler
+                    .execute_with_state(state, llm_response.thought, tool_name, tool_input)
+                    .await;
                 None
             }
             AgentAction::Finish { answer } => {

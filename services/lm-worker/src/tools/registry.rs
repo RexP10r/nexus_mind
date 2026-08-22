@@ -1,8 +1,11 @@
+use async_trait::async_trait;
+
 use crate::traits::tool::Tool;
 use std::collections::HashMap;
 
+#[async_trait]
 pub trait ToolRegistry: Send + Sync {
-    fn execute(&self, name: &str, input: &str) -> Option<String>;
+    async fn execute(&self, name: &str, input: &str) -> Option<String>;
     fn descriptions(&self) -> String;
 }
 
@@ -40,9 +43,14 @@ impl Default for InMemoryToolRegistry {
     }
 }
 
+#[async_trait]
 impl ToolRegistry for InMemoryToolRegistry {
-    fn execute(&self, name: &str, input: &str) -> Option<String> {
-        self.tools.get(name).map(|tool| tool.execute(input))
+    async fn execute(&self, name: &str, input: &str) -> Option<String> {
+        if let Some(tool) = self.tools.get(name) {
+            Some(tool.execute(input).await)
+        } else {
+            None
+        }
     }
 
     fn descriptions(&self) -> String {

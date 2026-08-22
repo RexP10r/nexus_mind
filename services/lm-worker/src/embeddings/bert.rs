@@ -7,6 +7,8 @@ use crate::config::{Config, get_onnx_log_level};
 use crate::error::WorkerError;
 use crate::model::EmbeddingVariant;
 
+const MAX_SEQ_LENGTH: usize = 512;
+
 pub struct BertProvider {
     session: Mutex<Session>,
     tokenizer: Tokenizer,
@@ -57,18 +59,33 @@ impl BertProvider {
             .encode(text, false)
             .map_err(|e| WorkerError::Embedding(format!("Tokenization failed: {}", e)))?;
 
-        let token_ids: Vec<i64> = encoding.get_ids().iter().map(|&id| id as i64).collect();
-        let attention_mask: Vec<i64> = encoding
+        let mut token_ids: Vec<i64> = encoding.get_ids().iter().map(|&id| id as i64).collect();
+        let mut token_type_ids: Vec<i64> = encoding
+            .get_type_ids()
+            .iter()
+            .map(|&id| id as i64)
+            .collect();
+        let mut attention_mask: Vec<i64> = encoding
             .get_attention_mask()
             .iter()
             .map(|&m| m as i64)
             .collect();
 
-        let seq_len = token_ids.len();
+        let mut seq_len = token_ids.len();
+        if seq_len > MAX_SEQ_LENGTH {
+            tracing::warn!("Length of embedded text reached bert's sequense length limit");
+            seq_len = MAX_SEQ_LENGTH;
+            token_ids = token_ids[..seq_len].to_vec();
+            token_type_ids = token_type_ids[..seq_len].to_vec();
+            attention_mask = attention_mask[..seq_len].to_vec();
+        }
 
         let input_tensor = Tensor::from_array(([1_usize, seq_len], token_ids))
             .map_err(|e| WorkerError::Embedding(format!("Failed to create input_ids: {}", e)))?;
-
+        let type_ids_tensor =
+            Tensor::from_array(([1_usize, seq_len], token_type_ids)).map_err(|e| {
+                WorkerError::Embedding(format!("Failed to create token_type_ids: {}", e))
+            })?;
         let mask_tensor =
             Tensor::from_array(([1_usize, seq_len], attention_mask)).map_err(|e| {
                 WorkerError::Embedding(format!("Failed to create attention_mask: {}", e))
@@ -76,7 +93,11 @@ impl BertProvider {
 
         let mut session = self.session.lock();
         let outputs = session
-            .run(ort::inputs!["input_ids" => input_tensor, "attention_mask" => mask_tensor])
+            .run(ort::inputs![
+                "input_ids" => input_tensor,
+                "token_type_ids" => type_ids_tensor,
+                "attention_mask" => mask_tensor
+            ])
             .map_err(|e| WorkerError::Embedding(format!("Model inference failed: {}", e)))?;
 
         let last_hidden = outputs["last_hidden_state"]

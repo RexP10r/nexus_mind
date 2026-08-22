@@ -1,11 +1,7 @@
-pub mod bert;
-pub mod tfidf;
-
+use crate::embeddings::dense::BertProvider;
+use crate::embeddings::sparse::TfIdfProvider;
 use crate::error::WorkerError;
 use crate::model::EmbeddingVariant;
-
-use bert::BertProvider;
-use tfidf::TfIdfProvider;
 
 pub struct EmbeddingProviders {
     pub tfidf: TfIdfProvider,

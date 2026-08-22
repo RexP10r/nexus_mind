@@ -10,8 +10,8 @@ use qdrant_client::qdrant::{
 use qdrant_client::{Payload, Qdrant};
 use serde::{Deserialize, Serialize};
 
-use crate::embeddings::EmbeddingProviders;
-use crate::embeddings::tfidf::VocabState;
+use crate::embeddings::provider::EmbeddingProviders;
+use crate::embeddings::sparse::VocabState;
 use crate::error::WorkerError;
 use crate::model::{Document, EmbeddingVariant, SearchResult};
 
@@ -359,7 +359,7 @@ impl QdrantVectorStore {
             let mut processed_docs: u64 = 0;
 
             for text in doc_texts {
-                let terms = crate::embeddings::tfidf::tokenize(text);
+                let terms = crate::embeddings::sparse::tokenize(text);
                 if terms.is_empty() {
                     continue;
                 }

@@ -17,24 +17,24 @@ fn default_limit() -> u64 {
     5
 }
 
-pub struct SearchBertTool {
+pub struct SearchLMTool {
     store: Arc<QdrantVectorStore>,
 }
 
-impl SearchBertTool {
+impl SearchLMTool {
     pub fn new(store: Arc<QdrantVectorStore>) -> Self {
         Self { store }
     }
 }
 
 #[async_trait]
-impl Tool for SearchBertTool {
+impl Tool for SearchLMTool {
     fn name(&self) -> &str {
         "search_lm"
     }
 
     fn description(&self) -> &str {
-        "searches the knowledge base using BERT (semantic understanding). input: JSON {\"query\": \"...\", \"limit\": 5}"
+        "searches the knowledge base using LM (semantic understanding). input: JSON {\"query\": \"...\", \"limit\": 5}"
     }
 
     async fn execute(&self, input: &str) -> String {
@@ -59,7 +59,7 @@ impl Tool for SearchBertTool {
                 }
                 format_results(&results)
             }
-            Err(e) => format!("BERT search failed: {}", e),
+            Err(e) => format!("LM search failed: {}", e),
         }
     }
 }

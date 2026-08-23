@@ -24,20 +24,18 @@ pub fn build_router(state: AppState) -> axum::Router {
             )
         })
         .on_request(|_: &axum::http::Request<axum::body::Body>, _: &Span| {})
-        .on_response(
-            |_: &axum::http::Response<axum::body::Body>, _: Duration, _: &Span| {},
-        );
+        .on_response(|_: &axum::http::Response<axum::body::Body>, _: Duration, _: &Span| {});
 
     axum::Router::new()
         .route("/api/v1/chat", axum::routing::post(routes::chat))
         .route("/api/v1/docs", axum::routing::post(routes::add_docs))
         .route(
-            "/api/v1/docs/search/tfidf",
-            axum::routing::post(routes::search_tfidf),
+            "/api/v1/docs/search/sparse",
+            axum::routing::post(routes::search_sparse),
         )
         .route(
-            "/api/v1/docs/search/lm",
-            axum::routing::post(routes::search_lm),
+            "/api/v1/docs/search/dense",
+            axum::routing::post(routes::search_dense),
         )
         .route("/health", axum::routing::get(routes::health))
         .layer(trace_layer)

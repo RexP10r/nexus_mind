@@ -233,7 +233,7 @@ pub async fn add_docs(
     (StatusCode::OK, Json(serde_json::to_value(&resp).unwrap()))
 }
 
-pub async fn search_tfidf(
+pub async fn search_sparse(
     State(state): State<AppState>,
     Json(req): Json<SearchRequest>,
 ) -> (StatusCode, Json<serde_json::Value>) {
@@ -253,13 +253,13 @@ pub async fn search_tfidf(
             tracing::info!(
                 query = %req.query,
                 results_count = results.len(),
-                "TF-IDF search completed"
+                "Sparse search completed"
             );
             let resp = SearchResponse { results };
             (StatusCode::OK, Json(serde_json::to_value(&resp).unwrap()))
         }
         Err(e) => {
-            tracing::error!(error = %e, "TF-IDF search failed");
+            tracing::error!(error = %e, "Sparse search failed");
             let err = ErrorResponse {
                 error: e.to_string(),
                 status: "error".to_string(),
@@ -272,7 +272,7 @@ pub async fn search_tfidf(
     }
 }
 
-pub async fn search_lm(
+pub async fn search_dense(
     State(state): State<AppState>,
     Json(req): Json<SearchRequest>,
 ) -> (StatusCode, Json<serde_json::Value>) {
@@ -292,13 +292,13 @@ pub async fn search_lm(
             tracing::info!(
                 query = %req.query,
                 results_count = results.len(),
-                "BERT search completed"
+                "Dense search completed"
             );
             let resp = SearchResponse { results };
             (StatusCode::OK, Json(serde_json::to_value(&resp).unwrap()))
         }
         Err(e) => {
-            tracing::error!(error = %e, "BERT search failed");
+            tracing::error!(error = %e, "Dense search failed");
             let err = ErrorResponse {
                 error: e.to_string(),
                 status: "error".to_string(),

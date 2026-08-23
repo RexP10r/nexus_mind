@@ -22,7 +22,7 @@ use crate::provider::grpc::GrpcLlmProvider;
 use crate::server::AppState;
 use crate::tools::calculator::CalculatorTool;
 use crate::tools::registry::InMemoryToolRegistry;
-use crate::tools::search_bert::SearchBertTool;
+use crate::tools::search_lm::SearchLMTool;
 use crate::tools::search_tfidf::SearchTfIdfTool;
 use crate::traits::agent::Agent;
 use crate::traits::llm::LlmProvider;
@@ -109,16 +109,16 @@ async fn init_vector_store(config: &Config) -> Result<Arc<QdrantVectorStore>, Wo
         TfIdfProvider::new(vocab)
     };
 
-    let bert_provider = {
+    let embedder_lm_provider = {
         tracing::info!(
             model_path = %config.embedding_model_path,
             tokenizer_path = %config.embedding_tokenizer_path,
-            "Loading BERT ONNX model"
+            "Loading Embedder LM ONNX model"
         );
         EmbedderLMProvider::from_files(&config)?
     };
 
-    let embeddings = EmbeddingProviders::new(tfidf_provider, bert_provider);
+    let embeddings = EmbeddingProviders::new(tfidf_provider, embedder_lm_provider);
 
     let store =
         QdrantVectorStore::new(client, config.qdrant_collection_name.clone(), embeddings).await?;
@@ -138,7 +138,7 @@ async fn init_agent(
             let tool_registry = InMemoryToolRegistry::from_tools(vec![
                 Box::new(CalculatorTool),
                 Box::new(SearchTfIdfTool::new(Arc::clone(&vector_store))),
-                Box::new(SearchBertTool::new(Arc::clone(&vector_store))),
+                Box::new(SearchLMTool::new(Arc::clone(&vector_store))),
             ]);
             let tool_count = tool_registry.tool_count();
             tracing::info!(

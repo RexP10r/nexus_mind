@@ -198,7 +198,7 @@ impl QdrantVectorStore {
                     .with_payload(true),
             )
             .await
-            .map_err(|e| WorkerError::Qdrant(format!("BERT search failed: {}", e)))?;
+            .map_err(|e| WorkerError::Qdrant(format!("LM search failed: {}", e)))?;
 
         Ok(results
             .result

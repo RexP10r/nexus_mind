@@ -44,7 +44,7 @@ impl EmbedderLMProvider{
         tracing::info!(
             model_path,
             tokenizer_path,
-            "BERT embedding provider initialized"
+            "LM embedding provider initialized"
         );
 
         Ok(Self {
@@ -73,7 +73,7 @@ impl EmbedderLMProvider{
 
         let mut seq_len = token_ids.len();
         if seq_len > MAX_SEQ_LENGTH {
-            tracing::warn!("Length of embedded text reached bert's sequense length limit");
+            tracing::warn!("Length of embedded text reached lm's sequense length limit");
             seq_len = MAX_SEQ_LENGTH;
             token_ids = token_ids[..seq_len].to_vec();
             token_type_ids = token_type_ids[..seq_len].to_vec();

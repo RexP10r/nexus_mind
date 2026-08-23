@@ -30,7 +30,7 @@ impl SearchBertTool {
 #[async_trait]
 impl Tool for SearchBertTool {
     fn name(&self) -> &str {
-        "search_bert"
+        "search_lm"
     }
 
     fn description(&self) -> &str {
@@ -42,7 +42,7 @@ impl Tool for SearchBertTool {
             Ok(v) => v,
             Err(e) => {
                 return format!(
-                    "Invalid input for search_bert: {}. Expected JSON with 'query' field.",
+                    "Invalid input for search_lm: {}. Expected JSON with 'query' field.",
                     e
                 )
             }
@@ -52,7 +52,7 @@ impl Tool for SearchBertTool {
             return "Empty query provided.".to_string();
         }
 
-        match self.store.search_bert(&parsed.query, parsed.limit).await {
+        match self.store.search_lm(&parsed.query, parsed.limit).await {
             Ok(results) => {
                 if results.is_empty() {
                     return "No relevant documents found.".to_string();

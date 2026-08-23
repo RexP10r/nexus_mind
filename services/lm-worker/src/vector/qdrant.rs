@@ -59,7 +59,7 @@ pub async fn ensure_collection(client: &Qdrant, collection_name: &str) -> Result
     tracing::info!("Existing collection not found, creating a new one...");
 
     let mut vectors_config = VectorsConfigBuilder::new();
-    vectors_config.add_named_vector_params("bert", VectorParamsBuilder::new(384, Distance::Cosine));
+    vectors_config.add_named_vector_params("lm", VectorParamsBuilder::new(384, Distance::Cosine));
 
     let mut sparse_config = SparseVectorsConfigBuilder::new();
     sparse_config.add_named_vector_params("tfidf", SparseVectorParamsBuilder::default());
@@ -78,7 +78,7 @@ pub async fn ensure_collection(client: &Qdrant, collection_name: &str) -> Result
 
     tracing::info!(
         collection = %collection_name,
-        "Created Qdrant collection with named vectors (bert + tfidf)"
+        "Created Qdrant collection with named vectors (lm + tfidf)"
     );
 
     Ok(())
@@ -127,8 +127,8 @@ impl QdrantVectorStore {
 
         for doc in docs {
             let tfidf_emb = EmbeddingVariant::Sparse(vec![], vec![]);
-            let bert_emb = self.embeddings.embed_bert(&doc.text)?;
-            let point = build_point(doc, &tfidf_emb, &bert_emb)?;
+            let lm_emb = self.embeddings.embed_lm(&doc.text)?;
+            let point = build_point(doc, &tfidf_emb, &lm_emb)?;
 
             points.push(point);
         }
@@ -179,12 +179,12 @@ impl QdrantVectorStore {
             .collect())
     }
 
-    pub async fn search_bert(
+    pub async fn search_lm(
         &self,
         query: &str,
         limit: u64,
     ) -> Result<Vec<SearchResult>, WorkerError> {
-        let embedding = self.embeddings.embed_bert(query)?;
+        let embedding = self.embeddings.embed_lm(query)?;
         let vec = match &embedding {
             EmbeddingVariant::Dense(v) => v.clone(),
             _ => return Ok(vec![]),
@@ -194,7 +194,7 @@ impl QdrantVectorStore {
             .client
             .search_points(
                 SearchPointsBuilder::new(&self.collection_name, vec, limit)
-                    .vector_name("bert".to_string())
+                    .vector_name("lm".to_string())
                     .with_payload(true),
             )
             .await
@@ -269,17 +269,17 @@ impl QdrantVectorStore {
 
             let tfidf_emb = self.embeddings.embed_tfidf(&text)?;
 
-            let bert_vec = retrieved
+            let lm_vec = retrieved
                 .vectors
                 .as_ref()
-                .and_then(|v| v.get_vector_by_name("bert"))
+                .and_then(|v| v.get_vector_by_name("lm"))
                 .and_then(|vec| match vec {
                     qdrant_client::qdrant::vector_output::Vector::Dense(dense) => Some(dense.data),
                     _ => None,
                 });
 
-            let Some(bert_data) = bert_vec else {
-                tracing::warn!(point_id = ?id, "Missing bert vector, skipping");
+            let Some(lm_data) = lm_vec else {
+                tracing::warn!(point_id = ?id, "Missing lm vector, skipping");
                 continue;
             };
 
@@ -303,11 +303,11 @@ impl QdrantVectorStore {
                 }
             };
 
-            let bert_dense = qdrant_client::qdrant::Vector::new_dense(bert_data);
+            let lm_dense = qdrant_client::qdrant::Vector::new_dense(lm_data);
 
             let named_vectors = NamedVectors::default()
                 .add_vector("tfidf", tfidf_sparse)
-                .add_vector("bert", bert_dense);
+                .add_vector("lm", lm_dense);
 
             updated_points.push(PointStruct::new(point_id, named_vectors, payload));
         }
@@ -480,7 +480,7 @@ impl QdrantVectorStore {
 fn build_point(
     doc: &Document,
     tfidf_emb: &EmbeddingVariant,
-    bert_emb: &EmbeddingVariant,
+    lm_emb: &EmbeddingVariant,
 ) -> Result<PointStruct, WorkerError> {
     let id: u64 = max(fast_hash(&doc.id), 1);
     let payload: Payload = serde_json::json!({"text": doc.text})
@@ -498,18 +498,18 @@ fn build_point(
         }
     };
 
-    let bert_dense = match bert_emb {
+    let lm_dense = match lm_emb {
         EmbeddingVariant::Dense(vec) => qdrant_client::qdrant::Vector::new_dense(vec.clone()),
         _ => {
             return Err(WorkerError::Qdrant(
-                "Wrong bert embedding in a point".to_string(),
+                "Wrong lm embedding in a point".to_string(),
             ));
         }
     };
 
     let named_vectors = NamedVectors::default()
         .add_vector("tfidf", tfidf_sparse)
-        .add_vector("bert", bert_dense);
+        .add_vector("lm", lm_dense);
 
     Ok(PointStruct::new(id, named_vectors, payload))
 }

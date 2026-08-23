@@ -5,19 +5,19 @@ use crate::model::EmbeddingVariant;
 
 pub struct EmbeddingProviders {
     pub tfidf: TfIdfProvider,
-    pub bert: EmbedderLMProvider,
+    pub lm: EmbedderLMProvider,
 }
 
 impl EmbeddingProviders {
-    pub fn new(tfidf: TfIdfProvider, bert: EmbedderLMProvider) -> Self {
-        Self { tfidf, bert }
+    pub fn new(tfidf: TfIdfProvider, lm: EmbedderLMProvider) -> Self {
+        Self { tfidf, lm }
     }
 
     pub fn embed_tfidf(&self, text: &str) -> Result<EmbeddingVariant, WorkerError> {
         self.tfidf.embed(text)
     }
 
-    pub fn embed_bert(&self, text: &str) -> Result<EmbeddingVariant, WorkerError> {
-        self.bert.embed(text)
+    pub fn embed_lm(&self, text: &str) -> Result<EmbeddingVariant, WorkerError> {
+        self.lm.embed(text)
     }
 }

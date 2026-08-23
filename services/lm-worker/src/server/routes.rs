@@ -272,7 +272,7 @@ pub async fn search_tfidf(
     }
 }
 
-pub async fn search_bert(
+pub async fn search_lm(
     State(state): State<AppState>,
     Json(req): Json<SearchRequest>,
 ) -> (StatusCode, Json<serde_json::Value>) {
@@ -287,7 +287,7 @@ pub async fn search_bert(
         );
     }
 
-    match state.vector_store.search_bert(&req.query, req.limit).await {
+    match state.vector_store.search_lm(&req.query, req.limit).await {
         Ok(results) => {
             tracing::info!(
                 query = %req.query,

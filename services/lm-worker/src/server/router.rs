@@ -36,8 +36,8 @@ pub fn build_router(state: AppState) -> axum::Router {
             axum::routing::post(routes::search_tfidf),
         )
         .route(
-            "/api/v1/docs/search/bert",
-            axum::routing::post(routes::search_bert),
+            "/api/v1/docs/search/lm",
+            axum::routing::post(routes::search_lm),
         )
         .route("/health", axum::routing::get(routes::health))
         .layer(trace_layer)

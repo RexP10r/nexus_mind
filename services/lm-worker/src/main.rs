@@ -14,7 +14,7 @@ mod vector;
 use crate::agent::rag::RAGAgent;
 use crate::config::{AgentType, Config, ProviderType};
 use crate::db::DbLayer;
-use crate::embeddings::dense::BertProvider;
+use crate::embeddings::dense::EmbedderLMProvider;
 use crate::embeddings::provider::EmbeddingProviders;
 use crate::embeddings::sparse::TfIdfProvider;
 use crate::error::WorkerError;
@@ -115,7 +115,7 @@ async fn init_vector_store(config: &Config) -> Result<Arc<QdrantVectorStore>, Wo
             tokenizer_path = %config.embedding_tokenizer_path,
             "Loading BERT ONNX model"
         );
-        BertProvider::from_files(&config)?
+        EmbedderLMProvider::from_files(&config)?
     };
 
     let embeddings = EmbeddingProviders::new(tfidf_provider, bert_provider);

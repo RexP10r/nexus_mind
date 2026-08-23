@@ -9,12 +9,12 @@ use crate::model::EmbeddingVariant;
 
 const MAX_SEQ_LENGTH: usize = 512;
 
-pub struct BertProvider {
+pub struct EmbedderLMProvider {
     session: Mutex<Session>,
     tokenizer: Tokenizer,
 }
 
-impl BertProvider {
+impl EmbedderLMProvider{
     pub fn from_files(config: &Config) -> Result<Self, WorkerError> {
         let model_path = config.embedding_model_path.as_str();
         let tokenizer_path = config.embedding_tokenizer_path.as_str();

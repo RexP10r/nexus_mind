@@ -1,15 +1,15 @@
-use crate::embeddings::dense::BertProvider;
+use crate::embeddings::dense::EmbedderLMProvider;
 use crate::embeddings::sparse::TfIdfProvider;
 use crate::error::WorkerError;
 use crate::model::EmbeddingVariant;
 
 pub struct EmbeddingProviders {
     pub tfidf: TfIdfProvider,
-    pub bert: BertProvider,
+    pub bert: EmbedderLMProvider,
 }
 
 impl EmbeddingProviders {
-    pub fn new(tfidf: TfIdfProvider, bert: BertProvider) -> Self {
+    pub fn new(tfidf: TfIdfProvider, bert: EmbedderLMProvider) -> Self {
         Self { tfidf, bert }
     }
 

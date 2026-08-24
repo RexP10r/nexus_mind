@@ -37,6 +37,18 @@ pub enum Command {
     None,
 }
 
+#[derive(Debug, Clone)]
+pub struct CommandSuggestion {
+    pub command: &'static str,
+    pub description: &'static str,
+}
+
+pub const COMMANDS: &[CommandSuggestion] = &[
+    CommandSuggestion { command: "/help", description: "Show commands" },
+    CommandSuggestion { command: "/docs", description: "Add files to knowledge base" },
+    CommandSuggestion { command: "/clear", description: "Clear this chat" },
+];
+
 pub struct App {
     state: AppState,
     messages: Vec<DisplayMessage>,
@@ -47,6 +59,9 @@ pub struct App {
     running: bool,
     pending: bool,
     pending_files: Vec<FileInfo>,
+    autocomplete_active: bool,
+    autocomplete_selection: usize,
+    autocomplete_matches: Vec<usize>,
 }
 
 impl App {
@@ -61,6 +76,9 @@ impl App {
             running: true,
             pending: false,
             pending_files: Vec::new(),
+            autocomplete_active: false,
+            autocomplete_selection: 0,
+            autocomplete_matches: Vec::new(),
         }
     }
 
@@ -92,6 +110,43 @@ impl App {
         self.pending
     }
 
+    pub fn autocomplete_active(&self) -> bool {
+        self.autocomplete_active
+    }
+
+    pub fn autocomplete_selection(&self) -> usize {
+        self.autocomplete_selection
+    }
+
+    pub fn autocomplete_matches(&self) -> &[usize] {
+        &self.autocomplete_matches
+    }
+
+    pub fn update_autocomplete(&mut self) {
+        if self.state != AppState::Normal {
+            self.autocomplete_active = false;
+            return;
+        }
+
+        let input = self.input.trim();
+        if input.starts_with('/') && !input.contains(' ') {
+            let prefix = input.to_lowercase();
+            self.autocomplete_matches = COMMANDS
+                .iter()
+                .enumerate()
+                .filter(|(_, cmd)| cmd.command.to_lowercase().starts_with(&prefix))
+                .map(|(i, _)| i)
+                .collect();
+            
+            self.autocomplete_active = !self.autocomplete_matches.is_empty();
+            if self.autocomplete_active && self.autocomplete_selection >= self.autocomplete_matches.len() {
+                self.autocomplete_selection = 0;
+            }
+        } else {
+            self.autocomplete_active = false;
+        }
+    }
+
     pub fn handle_event(&mut self, event: AppEvent) -> Command {
         match event {
             AppEvent::Key(key) => self.handle_key(key),
@@ -110,26 +165,63 @@ impl App {
     }
 
     fn handle_key_normal(&mut self, key: KeyInput) -> Command {
+        if self.autocomplete_active {
+            match key {
+                KeyInput::Up => {
+                    if !self.autocomplete_matches.is_empty() {
+                        self.autocomplete_selection = if self.autocomplete_selection == 0 {
+                            self.autocomplete_matches.len() - 1
+                        } else {
+                            self.autocomplete_selection - 1
+                        };
+                    }
+                    return Command::None;
+                }
+                KeyInput::Down => {
+                    if !self.autocomplete_matches.is_empty() {
+                        self.autocomplete_selection = (self.autocomplete_selection + 1) % self.autocomplete_matches.len();
+                    }
+                    return Command::None;
+                }
+                KeyInput::Enter | KeyInput::Char('\t') => {
+                    if !self.autocomplete_matches.is_empty() {
+                        let cmd_idx = self.autocomplete_matches[self.autocomplete_selection];
+                        let cmd = COMMANDS[cmd_idx].command;
+                        self.input = format!("{} ", cmd);
+                        self.autocomplete_active = false;
+                        return Command::None;
+                    }
+                }
+                KeyInput::Char('\x1b') => {
+                    self.autocomplete_active = false;
+                    return Command::None;
+                }
+                _ => {}
+            }
+        }
+
         match key {
             KeyInput::CtrlC => {
                 self.running = false;
                 Command::None
             }
-            KeyInput::Up => {
+            KeyInput::Up if !self.autocomplete_active => {
                 self.scroll_offset = self.scroll_offset.saturating_add(1);
                 Command::None
             }
-            KeyInput::Down => {
+            KeyInput::Down if !self.autocomplete_active => {
                 self.scroll_offset = self.scroll_offset.saturating_sub(1);
                 Command::None
             }
             KeyInput::Enter if !self.input.is_empty() && !self.pending => self.submit_input(),
             KeyInput::Backspace => {
                 self.input.pop();
+                self.update_autocomplete();
                 Command::None
             }
             KeyInput::Char(c) if !self.pending => {
                 self.input.push(c);
+                self.update_autocomplete();
                 Command::None
             }
             _ => Command::None,

@@ -1,3 +1,4 @@
+pub mod autocomplete;
 pub mod chat;
 pub mod help;
 pub mod input;
@@ -23,4 +24,6 @@ pub fn render(frame: &mut Frame, app: &App) {
     chat::render(frame, chat_area, app);
     input::render(frame, input_area, app);
     help::render(frame, help_area, app);
+    
+    autocomplete::render(frame, input_area, app);
 }

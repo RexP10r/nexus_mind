@@ -12,12 +12,8 @@ pub fn render(frame: &mut Frame, area: Rect, _app: &App) {
         Span::styled(":quit  ", Style::default().fg(Color::DarkGray)),
         Span::styled("↑↓", Style::default().fg(Color::Yellow)),
         Span::styled(":scroll  ", Style::default().fg(Color::DarkGray)),
-        Span::styled("/docs [flat|recursive] <path>", Style::default().fg(Color::Cyan)),
-        Span::styled(":add files  ", Style::default().fg(Color::DarkGray)),
         Span::styled("/help", Style::default().fg(Color::Cyan)),
         Span::styled(":commands  ", Style::default().fg(Color::DarkGray)),
-        Span::styled("/clear", Style::default().fg(Color::Cyan)),
-        Span::styled(":clear history", Style::default().fg(Color::DarkGray)),
     ];
 
     let line = Line::from(hints);

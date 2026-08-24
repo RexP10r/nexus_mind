@@ -19,7 +19,7 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
     };
 
     let pending_indicator = if app.pending() {
-        Span::styled(" [sending...]", Style::default().fg(Color::DarkGray))
+        Span::styled(" [processing...]", Style::default().fg(Color::DarkGray))
     } else {
         Span::raw("")
     };

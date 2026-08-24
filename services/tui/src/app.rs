@@ -44,9 +44,18 @@ pub struct CommandSuggestion {
 }
 
 pub const COMMANDS: &[CommandSuggestion] = &[
-    CommandSuggestion { command: "/help", description: "Show commands" },
-    CommandSuggestion { command: "/docs", description: "Add files to knowledge base" },
-    CommandSuggestion { command: "/clear", description: "Clear this chat" },
+    CommandSuggestion {
+        command: "/help",
+        description: "Show commands",
+    },
+    CommandSuggestion {
+        command: "/add_docs",
+        description: "Add files to knowledge base",
+    },
+    CommandSuggestion {
+        command: "/clear",
+        description: "Clear this chat",
+    },
 ];
 
 pub struct App {
@@ -137,9 +146,11 @@ impl App {
                 .filter(|(_, cmd)| cmd.command.to_lowercase().starts_with(&prefix))
                 .map(|(i, _)| i)
                 .collect();
-            
+
             self.autocomplete_active = !self.autocomplete_matches.is_empty();
-            if self.autocomplete_active && self.autocomplete_selection >= self.autocomplete_matches.len() {
+            if self.autocomplete_active
+                && self.autocomplete_selection >= self.autocomplete_matches.len()
+            {
                 self.autocomplete_selection = 0;
             }
         } else {
@@ -179,7 +190,8 @@ impl App {
                 }
                 KeyInput::Down => {
                     if !self.autocomplete_matches.is_empty() {
-                        self.autocomplete_selection = (self.autocomplete_selection + 1) % self.autocomplete_matches.len();
+                        self.autocomplete_selection =
+                            (self.autocomplete_selection + 1) % self.autocomplete_matches.len();
                     }
                     return Command::None;
                 }
@@ -305,25 +317,26 @@ impl App {
     fn handle_command(&mut self, text: String) -> Command {
         let parts: Vec<&str> = text.splitn(3, ' ').collect();
         let cmd = parts[0].to_lowercase();
-        
+
         match cmd.as_str() {
-            "/docs" => {
+            "/add_docs" => {
                 if parts.len() == 1 {
                     self.messages.push(DisplayMessage {
                         role: MessageRole::System,
-                        content: "Usage: /docs [flat|recursive] <path>".to_string(),
+                        content: "Usage: /add_docs [-f|--flat, -r|--recursive] <path>".to_string(),
                     });
                     return Command::None;
                 }
 
                 let (recursive, path_str) = if parts.len() == 3 {
                     match parts[1].to_lowercase().as_str() {
-                        "--flat"|"-f" => (false, parts[2]),
-                        "--recursive"|"-r" => (true, parts[2]),
+                        "--flat" | "-f" => (false, parts[2]),
+                        "--recursive" | "-r" => (true, parts[2]),
                         _ => {
                             self.messages.push(DisplayMessage {
                                 role: MessageRole::System,
-                                content: "Usage: /docs [-f|--flat, -r|--recursive] <path>".to_string(),
+                                content: "Usage: /add_docs [-f|--flat, -r|--recursive] <path>"
+                                    .to_string(),
                             });
                             return Command::None;
                         }
@@ -338,7 +351,7 @@ impl App {
             "/help" => {
                 self.messages.push(DisplayMessage {
                     role: MessageRole::System,
-                    content: "Commands:\n  /docs [-f|--flat, -r|--recursive] <path> - add documents to knowledge base\n  /help - show this help\n  /clear - clear chat history".to_string(),
+                    content: "Commands:\n  /add_docs [-f|--flat, -r|--recursive] <path> - add documents to knowledge base\n  /help - show this help\n  /clear - clear chat history".to_string(),
                 });
                 Command::None
             }

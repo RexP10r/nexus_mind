@@ -1,13 +1,16 @@
 mod api;
 mod app;
 mod config;
+mod conversation;
 mod error;
 mod event;
 mod file_reader;
+mod store;
 mod terminal;
 mod ui;
 
 use std::sync::mpsc;
+use std::sync::Arc;
 use std::time::Duration;
 
 use crate::api::http_client::HttpClient;
@@ -18,6 +21,7 @@ use crate::error::TuiError;
 use crate::event::termion_source::{spawn_termion_input_thread, TermionEventSource};
 use crate::event::{AppEvent, EventSource};
 use crate::file_reader::FileReader;
+use crate::store::ConversationStore;
 
 fn main() -> Result<(), TuiError> {
     let config = Config::from_env()?;
@@ -53,8 +57,9 @@ fn run_app(term: &mut terminal::TermionTerminal, config: Config) -> Result<(), T
         command_dispatch_loop(&server_url, cmd_rx, response_sender, handle);
     });
 
+    let store = Arc::new(ConversationStore::new(config.conversations_file.clone()));
     let file_reader = FileReader::new(&config);
-    let mut app = App::new(config.conversation_id.clone());
+    let mut app = App::new(store.clone());
     let mut event_source = TermionEventSource::new(event_rx);
 
     while app.is_running() {
@@ -72,6 +77,11 @@ fn run_app(term: &mut terminal::TermionTerminal, config: Config) -> Result<(), T
                     };
                     app.show_files_preview(files);
                 }
+                Command::SaveConversations => {
+                    if let Err(e) = app.save() {
+                        eprintln!("Failed to save conversations: {}", e);
+                    }
+                }
                 Command::None => {}
                 cmd => {
                     if cmd_tx.send(cmd).is_err() {
@@ -80,6 +90,10 @@ fn run_app(term: &mut terminal::TermionTerminal, config: Config) -> Result<(), T
                 }
             }
         }
+    }
+
+    if let Err(e) = app.save() {
+        eprintln!("Failed to save conversations on exit: {}", e);
     }
 
     Ok(())
@@ -130,7 +144,7 @@ fn command_dispatch_loop(
                         text: format!("File: {}\n\n{}", f.path.display(), f.content),
                     })
                     .collect();
-                
+
                 let req = crate::api::dto::AddDocsRequest { documents };
                 let url = server_url.clone();
                 let sender_clone = sender.clone();
@@ -142,7 +156,7 @@ fn command_dispatch_loop(
                     let _ = sender_clone.send(AppEvent::DocsResponse(result));
                 });
             }
-            Command::LoadPath(_, _) | Command::None => {}
+            Command::LoadPath(_, _) | Command::SaveConversations | Command::None => {}
         }
     }
 }

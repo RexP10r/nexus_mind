@@ -1,4 +1,5 @@
 use std::env;
+use std::path::PathBuf;
 
 use crate::error::TuiError;
 
@@ -6,9 +7,9 @@ use crate::error::TuiError;
 pub struct Config {
     pub server_url: String,
     pub health_poll_secs: u64,
-    pub conversation_id: String,
     pub docs_max_file_size: u64,
     pub docs_supported_extensions: Vec<String>,
+    pub conversations_file: PathBuf,
 }
 
 impl Config {
@@ -21,22 +22,26 @@ impl Config {
             .and_then(|v| v.parse().ok())
             .unwrap_or(5);
 
-        let conversation_id = env::var("CONVERSATION_ID")
-            .unwrap_or_else(|_| uuid::Uuid::new_v4().to_string());
-
         let docs_max_file_size = env::var("DOCS_MAX_FILE_SIZE")
             .ok()
             .and_then(|v| v.parse().ok())
             .unwrap_or(1_048_576);
 
         let docs_supported_extensions = env::var("DOCS_SUPPORTED_EXTENSIONS")
-            .unwrap_or_else(|_| {
-                ".md".to_string()
-            })
+            .unwrap_or_else(|_| ".md".to_string())
             .split(',')
             .map(|s| s.trim().to_string())
             .filter(|s| !s.is_empty())
             .collect();
+
+        let conversations_file = env::var("CONVERSATIONS_FILE")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| {
+                dirs::config_dir()
+                    .unwrap_or_else(|| PathBuf::from("."))
+                    .join("nexus_mind")
+                    .join("conversations.json")
+            });
 
         if server_url.is_empty() {
             return Err(TuiError::Config("NEXUS_SERVER_URL must not be empty".into()));
@@ -45,9 +50,9 @@ impl Config {
         Ok(Self {
             server_url,
             health_poll_secs,
-            conversation_id,
             docs_max_file_size,
             docs_supported_extensions,
+            conversations_file,
         })
     }
 }

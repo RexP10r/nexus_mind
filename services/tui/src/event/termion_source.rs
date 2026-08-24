@@ -35,12 +35,16 @@ pub fn spawn_termion_input_thread(sender: std::sync::mpsc::Sender<AppEvent>) {
                 Ok(Key::Char(c)) => match c {
                     '\n' => KeyInput::Enter,
                     '\x03' => KeyInput::CtrlC,
+                    '\x0e' => KeyInput::CtrlN,
+                    '\x14' => KeyInput::CtrlT,
                     c => KeyInput::Char(c),
                 },
                 Ok(Key::Backspace) => KeyInput::Backspace,
                 Ok(Key::Up) => KeyInput::Up,
                 Ok(Key::Down) => KeyInput::Down,
                 Ok(Key::Ctrl('c')) => KeyInput::CtrlC,
+                Ok(Key::Ctrl('n')) => KeyInput::CtrlN,
+                Ok(Key::Ctrl('t')) => KeyInput::CtrlT,
                 _ => KeyInput::Unknown,
             };
 

@@ -12,6 +12,8 @@ pub enum KeyInput {
     Up,
     Down,
     CtrlC,
+    CtrlN,
+    CtrlT,
     Unknown,
 }
 

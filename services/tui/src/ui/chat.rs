@@ -25,21 +25,24 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
         };
 
         // Split content by newlines and create separate lines
-        let content_lines: Vec<&str> = msg.content.split('\n').collect();
-        
+        let content_lines: Vec<String> = msg.content.split('\n').map(|s| s.to_string()).collect();
+
         for (i, content_line) in content_lines.iter().enumerate() {
             if i == 0 {
                 // First line gets the role prefix
-                let role_span = Span::styled(prefix, Style::default().fg(color).add_modifier(Modifier::BOLD));
-                let content_span = Span::styled(*content_line, Style::default().fg(Color::White));
+                let role_span =
+                    Span::styled(prefix, Style::default().fg(color).add_modifier(Modifier::BOLD));
+                let content_span =
+                    Span::styled(content_line.clone(), Style::default().fg(Color::White));
                 lines.push(Line::from(vec![role_span, content_span]));
             } else {
                 // Subsequent lines are indented continuation
-                let content_span = Span::styled(*content_line, Style::default().fg(Color::White));
+                let content_span =
+                    Span::styled(content_line.clone(), Style::default().fg(Color::White));
                 lines.push(Line::from(content_span));
             }
         }
-        
+
         lines.push(Line::from("")); // blank line between messages
     }
 

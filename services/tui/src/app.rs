@@ -318,12 +318,12 @@ impl App {
 
                 let (recursive, path_str) = if parts.len() == 3 {
                     match parts[1].to_lowercase().as_str() {
-                        "flat" => (false, parts[2]),
-                        "recursive" => (true, parts[2]),
+                        "--flat"|"-f" => (false, parts[2]),
+                        "--recursive"|"-r" => (true, parts[2]),
                         _ => {
                             self.messages.push(DisplayMessage {
                                 role: MessageRole::System,
-                                content: "Usage: /docs [flat|recursive] <path>".to_string(),
+                                content: "Usage: /docs [-f|--flat, -r|--recursive] <path>".to_string(),
                             });
                             return Command::None;
                         }
@@ -338,7 +338,7 @@ impl App {
             "/help" => {
                 self.messages.push(DisplayMessage {
                     role: MessageRole::System,
-                    content: "Commands:\n  /docs [flat|recursive] <path> - add documents to knowledge base\n  /help - show this help\n  /clear - clear chat history".to_string(),
+                    content: "Commands:\n  /docs [-f|--flat, -r|--recursive] <path> - add documents to knowledge base\n  /help - show this help\n  /clear - clear chat history".to_string(),
                 });
                 Command::None
             }

@@ -16,7 +16,7 @@ pub fn build_router(state: AppState) -> axum::Router {
                 .map(|s| s.to_string())
                 .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
 
-            tracing::info_span!(
+            tracing::debug_span!(
                 "http_request",
                 request_id = %request_id,
                 method = %request.method(),
@@ -27,14 +27,14 @@ pub fn build_router(state: AppState) -> axum::Router {
         .on_response(|_: &axum::http::Response<axum::body::Body>, _: Duration, _: &Span| {});
 
     axum::Router::new()
-        .route("/api/v1/chat", axum::routing::post(routes::chat))
-        .route("/api/v1/docs", axum::routing::post(routes::add_docs))
+        .route("/api/chat", axum::routing::post(routes::chat))
+        .route("/api/docs/add", axum::routing::post(routes::add_docs))
         .route(
-            "/api/v1/docs/search/sparse",
+            "/api/docs/search/sparse",
             axum::routing::post(routes::search_sparse),
         )
         .route(
-            "/api/v1/docs/search/dense",
+            "/api/docs/search/dense",
             axum::routing::post(routes::search_dense),
         )
         .route("/health", axum::routing::get(routes::health))

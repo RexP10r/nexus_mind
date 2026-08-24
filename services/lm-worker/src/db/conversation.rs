@@ -41,7 +41,7 @@ impl ConversationStore {
             .map_err(|e| WorkerError::Db(format!("Mongo find error: {}", e)))
     }
 
-    #[tracing::instrument(skip(self), fields(conversation_id = %conversation_id))]
+    #[tracing::instrument(skip(self, entries), fields(conversation_id = %conversation_id))]
     pub async fn append_timeline_entries(
         &self,
         conversation_id: &str,

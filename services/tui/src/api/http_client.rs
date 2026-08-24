@@ -61,14 +61,14 @@ impl HttpClient {
 #[async_trait]
 impl ChatApi for HttpClient {
     async fn chat(&self, req: ChatRequest) -> Result<ChatResponse, TuiError> {
-        self.post_json("/api/v1/chat", &req).await
+        self.post_json("/api/chat", &req).await
     }
 }
 
 #[async_trait]
 impl DocsApi for HttpClient {
     async fn add_docs(&self, req: AddDocsRequest) -> Result<AddDocsResponse, TuiError> {
-        self.post_json("/api/v1/docs", &req).await
+        self.post_json("/api/docs/add", &req).await
     }
 }
 

@@ -71,7 +71,7 @@ pub async fn generate_summary(
     match extract_json_response::<SummaryResponse>(&raw_text) {
         Ok(parsed) => Ok(parsed.answer),
         Err(_) => {
-            tracing::debug!(raw_preview = %raw_text.chars().take(200).collect::<String>(), "Failed to parse summary JSON, using raw text");
+            tracing::error!(raw_preview = %raw_text.chars().take(200).collect::<String>(), "Failed to parse summary JSON, using raw text");
             Ok(raw_text)
         }
     }

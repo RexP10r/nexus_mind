@@ -10,16 +10,17 @@ pub struct FileInfo {
     pub size: u64,
 }
 
-pub struct FileReader {
+pub struct FileReader<'a> {
     max_file_size: u64,
-    supported_extensions: Vec<String>,
+    supported_extensions: &'a [&'a str],
 }
 
-impl FileReader {
+const SUPPORTED_EXTENSIONS: &[&str] = &[".md"];
+impl <'a> FileReader <'_> {
     pub fn new(config: &Config) -> Self {
         Self {
             max_file_size: config.docs_max_file_size,
-            supported_extensions: config.docs_supported_extensions.clone(),
+            supported_extensions: SUPPORTED_EXTENSIONS,
         }
     }
 

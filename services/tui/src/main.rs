@@ -24,7 +24,7 @@ use crate::file_reader::FileReader;
 use crate::store::ConversationStore;
 
 fn main() -> Result<(), TuiError> {
-    let config = Config::from_env()?;
+    let config = Config::from_env();
 
     let mut term = terminal::init()?;
 

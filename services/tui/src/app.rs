@@ -190,11 +190,13 @@ impl App {
     }
 
     pub fn messages(&self) -> Vec<DisplayMessage> {
-        self.active_conversation()
+        let messages = self.active_conversation()
             .messages()
             .into_iter()
             .map(|(role, content)| DisplayMessage { role, content })
-            .collect()
+            .collect::<Vec<_>>();
+        eprintln!("DEBUG: messages() - returning {} messages for display", messages.len());
+        messages
     }
 
     pub fn input(&self) -> &str {
@@ -426,6 +428,7 @@ impl App {
     fn submit_input(&mut self) -> Command {
         let text = std::mem::take(&mut self.input);
         self.scroll_offset = 0;
+        eprintln!("DEBUG: submit_input() - scroll_offset set to 0, text='{}'", text);
 
         if text.starts_with('/') {
             return self.handle_command(text);
@@ -448,6 +451,7 @@ impl App {
     }
 
     fn handle_command(&mut self, text: String) -> Command {
+        self.scroll_offset = 0;
         let parts: Vec<&str> = text.splitn(3, ' ').collect();
         let cmd = parts[0].to_lowercase();
 
@@ -575,14 +579,18 @@ impl App {
                     MessageRole::Assistant,
                     resp.message.content,
                 );
+                eprintln!("DEBUG: handle_chat_response() - added assistant message, total messages now: {}", self.active_conversation().messages().len());
             }
             Err(e) => {
                 self.active_conversation_mut().add_message(
                     MessageRole::System,
                     format!("[Error: {}]", e),
                 );
+                eprintln!("DEBUG: handle_chat_response() - added error message");
             }
         }
+        self.scroll_offset = 0;
+        eprintln!("DEBUG: handle_chat_response() - scroll_offset set to 0");
         Command::SaveConversations
     }
 
@@ -602,6 +610,7 @@ impl App {
                 );
             }
         }
+        self.scroll_offset = 0;
         Command::None
     }
 
@@ -619,6 +628,7 @@ impl App {
                 MessageRole::System,
                 "[No supported files found]".to_string(),
             );
+            self.scroll_offset = 0;
             return;
         }
 
@@ -637,6 +647,7 @@ impl App {
         self.state = AppState::DocsConfirm;
         self.active_conversation_mut()
             .add_message(MessageRole::System, preview);
+        self.scroll_offset = 0;
     }
 
     pub fn save(&self) -> Result<(), TuiError> {

@@ -70,6 +70,7 @@ fn run_app(term: &mut terminal::TermionTerminal, config: Config) -> Result<(), T
 
         if let Some(event) = event_source.next_event(Duration::from_millis(100))? {
             let command = app.handle_event(event);
+            eprintln!("DEBUG: main loop - processed event, command={:?}", std::mem::discriminant(&command));
 
             match command {
                 Command::LoadPath(path, recursive) => {

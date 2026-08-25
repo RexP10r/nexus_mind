@@ -17,6 +17,7 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
     }
 
     let mut lines: Vec<Line> = Vec::new();
+    let visible_width = area.width.saturating_sub(2) as usize;
     for msg in messages {
         let (prefix, color) = match msg.role {
             MessageRole::User => ("You: ", Color::Cyan),
@@ -43,13 +44,18 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
             }
         }
 
-        lines.push(Line::from("")); // blank line between messages
+        lines.push(Line::from(""));
+        lines.push(Line::from("-".repeat(visible_width))); 
     }
 
     let visible_height = area.height.saturating_sub(2) as u16;
     let total_lines = lines.len() as u16;
     let max_scroll = total_lines.saturating_sub(visible_height);
     let scroll = max_scroll.saturating_sub(app.scroll_offset());
+
+    // Debug logging
+    eprintln!("DEBUG: total_lines={}, visible_height={}, max_scroll={}, scroll_offset={}, scroll={}", 
+        total_lines, visible_height, max_scroll, app.scroll_offset(), scroll);
 
     let paragraph = Paragraph::new(lines)
         .block(Block::bordered().title("Chat"))

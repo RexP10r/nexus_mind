@@ -35,17 +35,15 @@ impl ChatRequest {
     }
 }
 
-async fn build_chat_context(
-    state: &AppState,
-    req: &ChatRequest,
-) -> ChatContext {
+async fn build_chat_context(state: &AppState, req: &ChatRequest) -> ChatContext {
     let conversation_id = Arc::new(req.conversation_id.clone());
     let new_message = req.message.clone();
     let history_max_size = state.config.history_max_messages as usize;
 
     let messages = {
         let full_history = state.db.get_messages(&conversation_id).await;
-        full_history[full_history.len() - history_max_size..].to_vec()
+        let start = full_history.len().saturating_sub(history_max_size);
+        full_history[start..].to_vec()
     };
     let summary = state.db.get_summary_text(&conversation_id).await;
 

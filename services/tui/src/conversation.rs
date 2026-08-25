@@ -56,6 +56,7 @@ impl Conversation {
         });
         self.total_messages += 1;
         self.updated_at = Utc::now();
+        eprintln!("DEBUG: add_message() - role={:?}, total_messages={}, timeline_len={}", role, self.total_messages, self.timeline.len());
     }
 
     pub fn messages(&self) -> Vec<(MessageRole, String)> {

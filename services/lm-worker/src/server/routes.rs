@@ -1,14 +1,14 @@
+use axum::Json;
 use axum::extract::State;
 use axum::http::StatusCode;
-use axum::Json;
 use std::sync::Arc;
 
 use crate::model::{AgentResult, ChatRole, Document, GenerationParams, Message};
+use crate::server::AppState;
 use crate::server::dto::{
     AddDocsRequest, AddDocsResponse, ChatRequest, ChatResponse, ErrorResponse, HealthResponse,
     SearchRequest, SearchResponse,
 };
-use crate::server::AppState;
 
 fn doc_id(text: &str) -> String {
     use std::hash::{DefaultHasher, Hash, Hasher};
@@ -35,11 +35,18 @@ impl ChatRequest {
     }
 }
 
-async fn build_chat_context(state: &AppState, req: &ChatRequest) -> ChatContext {
+async fn build_chat_context(
+    state: &AppState,
+    req: &ChatRequest,
+) -> ChatContext {
     let conversation_id = Arc::new(req.conversation_id.clone());
     let new_message = req.message.clone();
+    let history_max_size = state.config.history_max_messages as usize;
 
-    let messages = state.db.get_messages(&conversation_id).await;
+    let messages = {
+        let full_history = state.db.get_messages(&conversation_id).await;
+        full_history[full_history.len() - history_max_size..].to_vec()
+    };
     let summary = state.db.get_summary_text(&conversation_id).await;
 
     ChatContext {
@@ -214,10 +221,7 @@ pub async fn add_docs(
     let docs_texts = docs.iter().map(|d| d.text.clone()).collect::<Vec<_>>();
     let store_cloned = state.vector_store.clone();
     tokio::spawn(async move {
-        if let Err(e) = store_cloned
-            .update_vocab_with_new_docs(&docs_texts)
-            .await
-        {
+        if let Err(e) = store_cloned.update_vocab_with_new_docs(&docs_texts).await {
             tracing::error!(error = %e, "Vocab update failed (non-critical)")
         }
     });

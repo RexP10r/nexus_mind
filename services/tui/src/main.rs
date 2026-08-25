@@ -9,21 +9,24 @@ mod store;
 mod terminal;
 mod ui;
 
-use std::sync::mpsc;
 use std::sync::Arc;
+use std::sync::mpsc;
 use std::time::Duration;
+
+use dotenvy::dotenv;
 
 use crate::api::http_client::HttpClient;
 use crate::api::{ChatApi, DocsApi, HealthApi};
 use crate::app::{App, Command};
 use crate::config::Config;
 use crate::error::TuiError;
-use crate::event::termion_source::{spawn_termion_input_thread, TermionEventSource};
+use crate::event::termion_source::{TermionEventSource, spawn_termion_input_thread};
 use crate::event::{AppEvent, EventSource};
 use crate::file_reader::FileReader;
 use crate::store::ConversationStore;
 
 fn main() -> Result<(), TuiError> {
+    let _ = dotenv();
     let config = Config::from_env();
 
     let mut term = terminal::init()?;
@@ -99,11 +102,7 @@ fn run_app(term: &mut terminal::TermionTerminal, config: Config) -> Result<(), T
     Ok(())
 }
 
-async fn health_poll_loop(
-    server_url: &str,
-    config: &Config,
-    sender: mpsc::Sender<AppEvent>,
-) {
+async fn health_poll_loop(server_url: &str, config: &Config, sender: mpsc::Sender<AppEvent>) {
     let Ok(api) = HttpClient::new(server_url) else {
         return;
     };

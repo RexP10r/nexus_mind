@@ -85,7 +85,9 @@ impl DbLayer {
         conversation_id: &str,
         summary: &str,
     ) -> Result<(), WorkerError> {
-        self.conversation.set_summary(conversation_id, summary).await?;
+        self.conversation
+            .set_summary(conversation_id, summary)
+            .await?;
 
         Ok(())
     }
@@ -109,10 +111,10 @@ impl DbLayer {
             }
         }
 
-        self.get_messages_from_conversation(conversation_id).await
+        self.get_messages_from_conversation_store(conversation_id).await
     }
 
-    pub async fn get_messages_from_conversation(&self, conversation_id: &str) -> Vec<Message> {
+    pub async fn get_messages_from_conversation_store(&self, conversation_id: &str) -> Vec<Message> {
         match self.conversation.get_conversation(conversation_id).await {
             Ok(Some(doc)) => timeline::timeline_to_messages(&doc.timeline),
             Ok(None) => Vec::new(),
@@ -146,7 +148,7 @@ impl DbLayer {
         }
 
         let older = {
-            let messages = self.get_messages_from_conversation(conversation_id).await;
+            let messages = self.get_messages_from_conversation_store(conversation_id).await;
             let keep = history_max_messages as usize;
             if messages.len() <= keep {
                 return;
@@ -155,25 +157,21 @@ impl DbLayer {
         };
 
         let batch_size = summary_interval as usize;
-        let new_batch: &[Message] = if older.len() <= batch_size {
-            &older[..]
-        } else {
-            &older[older.len() - batch_size..]
-        };
+        let new_batch: &[Message] = &older[older.len() - batch_size..];
 
         if new_batch.is_empty() {
             return;
         }
 
         let existing_summary = self.get_summary_text(conversation_id).await;
-        let summary = match summary::generate_summary(llm, new_batch, existing_summary.as_deref()).await {
-            Ok(s) => s,
-            Err(_) => return,
-        };
+        let summary =
+            match summary::generate_summary(llm, new_batch, existing_summary.as_deref()).await {
+                Ok(s) => s,
+                Err(_) => return,
+            };
 
         if let Err(e) = self.set_summary(conversation_id, &summary).await {
             tracing::warn!(error = %e, "Failed to set summary");
         }
-
     }
 }

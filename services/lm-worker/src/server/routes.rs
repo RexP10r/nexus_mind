@@ -10,12 +10,6 @@ use crate::server::dto::{
     SearchRequest, SearchResponse,
 };
 
-fn doc_id(text: &str) -> String {
-    use std::hash::{DefaultHasher, Hash, Hasher};
-    let mut h = DefaultHasher::new();
-    text.hash(&mut h);
-    format!("{:x}", h.finish())
-}
 
 struct ChatContext {
     conversation_id: Arc<String>,
@@ -192,8 +186,9 @@ pub async fn add_docs(
         .documents
         .into_iter()
         .map(|d| Document {
-            id: doc_id(&d.text),
             text: d.text,
+            file_format: d.file_format,
+            name: d.name
         })
         .collect();
 

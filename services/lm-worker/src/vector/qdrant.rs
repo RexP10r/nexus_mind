@@ -1,4 +1,3 @@
-use std::cmp::max;
 use std::collections::{HashMap, HashSet};
 
 use qdrant_client::qdrant::vectors_config::Config;
@@ -14,6 +13,7 @@ use crate::embeddings::provider::EmbeddingProviders;
 use crate::embeddings::sparse::VocabState;
 use crate::error::WorkerError;
 use crate::model::{Document, EmbeddingVariant, SearchResult};
+use crate::vector::splitter::DocSplitter;
 
 pub async fn get_collection_vocab(
     client: &Qdrant,
@@ -46,8 +46,7 @@ pub async fn get_collection_vocab(
 }
 
 pub async fn ensure_collection(client: &Qdrant, collection_name: &str) -> Result<(), WorkerError> {
-    let exists = 
-        client
+    let exists = client
         .collection_exists(collection_name)
         .await
         .map_err(|e| WorkerError::Qdrant(format!("Failed to check if colletion exists: {}", e)))?;
@@ -123,12 +122,25 @@ impl QdrantVectorStore {
             return Ok(0);
         }
 
-        let mut points = Vec::with_capacity(docs.len());
+        let mut chunks: Vec<String> = Vec::new();
+        let splitter = DocSplitter::new();
 
         for doc in docs {
+            chunks.extend(
+                match splitter.split(doc, &(|text| self.embeddings.lm.count_tokens(text))) {
+                    Some(new_chunks) => new_chunks,
+                    None => {
+                        return Err(WorkerError::Qdrant("Failed to split document".to_string()));
+                    }
+                },
+            );
+        }
+        let mut points = Vec::with_capacity(chunks.len());
+
+        for chunk in chunks {
             let tfidf_emb = EmbeddingVariant::Sparse(vec![], vec![]);
-            let lm_emb = self.embeddings.embed_lm(&doc.text)?;
-            let point = build_point(doc, &tfidf_emb, &lm_emb)?;
+            let lm_emb = self.embeddings.embed_lm(&chunk)?;
+            let point = build_point(chunk, &tfidf_emb, &lm_emb)?;
 
             points.push(point);
         }
@@ -478,12 +490,12 @@ impl QdrantVectorStore {
 }
 
 fn build_point(
-    doc: &Document,
+    chunk: String,
     tfidf_emb: &EmbeddingVariant,
     lm_emb: &EmbeddingVariant,
 ) -> Result<PointStruct, WorkerError> {
-    let id: u64 = max(fast_hash(&doc.id), 1);
-    let payload: Payload = serde_json::json!({"text": doc.text})
+    let id: u64 = fast_hash(&chunk);
+    let payload: Payload = serde_json::json!({"text": chunk})
         .try_into()
         .map_err(|e| WorkerError::Qdrant(format!("Failed to build payload: {}", e)))?;
 

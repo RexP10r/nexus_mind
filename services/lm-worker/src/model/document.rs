@@ -2,8 +2,9 @@ use serde::Serialize;
 
 #[derive(Debug, Clone)]
 pub struct Document {
-    pub id: String,
     pub text: String,
+    pub name: String,
+    pub file_format: String,
 }
 
 #[derive(Debug, Clone, Serialize)]

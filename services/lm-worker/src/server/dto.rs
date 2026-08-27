@@ -33,6 +33,8 @@ pub struct HealthResponse {
 #[derive(Debug, Deserialize)]
 pub struct DocumentInput {
     pub text: String,
+    pub name: String,
+    pub file_format: String,
 }
 
 #[derive(Debug, Deserialize)]

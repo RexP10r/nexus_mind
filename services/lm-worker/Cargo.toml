@@ -11,6 +11,7 @@ serde_json = "1"
 tonic = "0.13"
 prost = "0.13"
 anyhow = "1"
+comrak = "0.31"
 thiserror = "2"
 clap = { version = "4", features = ["derive", "env"] }
 async-trait = "0.1"

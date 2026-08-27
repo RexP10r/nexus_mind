@@ -135,4 +135,7 @@ impl EmbedderLMProvider{
 
         Ok(EmbeddingVariant::Dense(embedding))
     }
+    pub fn count_tokens(&self, text: &str) -> usize {
+        self.tokenizer.encode(text, false).map(|enc| enc.get_ids().len()).unwrap_or_default()
+    }
 }

@@ -3,19 +3,26 @@ name = "lm-worker"
 version = "0.1.0"
 edition = "2024"
 
+[[bin]]
+name = "lm-worker"
+path = "src/main.rs"
+
 [dependencies]
-tokio = { version = "1", features = ["full"] }
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+clap.workspace = true
+uuid.workspace = true
+async-trait.workspace = true
+thiserror.workspace = true
+chrono.workspace = true
+dotenvy.workspace = true
+
 axum = "0.8"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
 tonic = "0.13"
 prost = "0.13"
 anyhow = "1"
 comrak = "0.31"
-thiserror = "2"
-clap = { version = "4", features = ["derive", "env"] }
-async-trait = "0.1"
-uuid = { version = "1", features = ["v4"] }
 meval = "0.2"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
@@ -25,8 +32,6 @@ schemars = "1.2.1"
 redis = { version = "0.28", features = ["tokio-comp"] }
 bson = { version = "2", features = ["chrono-0_4"] }
 mongodb = "3.3"
-chrono = { version = "0.4", features = ["serde"] }
-dotenvy = "0.15"
 futures-util = "0.3"
 qdrant-client = "1"
 ort = { version = "2.0.0-rc.13", features = ["load-dynamic", "download-binaries"] }

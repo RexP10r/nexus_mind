@@ -585,7 +585,6 @@ impl App {
                 );
             }
         }
-        self.scroll_offset = 0;
         Command::SaveConversations
     }
 
@@ -605,7 +604,6 @@ impl App {
                 );
             }
         }
-        self.scroll_offset = 0;
         Command::None
     }
 

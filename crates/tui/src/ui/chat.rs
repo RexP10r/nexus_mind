@@ -45,9 +45,19 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
         lines.push(Line::from("-".repeat(visible_width))); 
     }
 
+    let mut visual_line_count: u16 = 0;
+    for line in &lines {
+        let line_len = line.to_string().len();
+        let wrapped = if line_len == 0 {
+            1
+        } else {
+            (line_len + visible_width - 1) / visible_width
+        };
+        visual_line_count = visual_line_count.saturating_add(wrapped as u16);
+    }
+
     let visible_height = area.height.saturating_sub(2) as u16;
-    let total_lines = lines.len() as u16;
-    let max_scroll = total_lines.saturating_sub(visible_height);
+    let max_scroll = visual_line_count.saturating_sub(visible_height);
     let scroll = max_scroll.saturating_sub(app.scroll_offset());
 
 

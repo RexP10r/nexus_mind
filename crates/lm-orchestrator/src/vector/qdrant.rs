@@ -1,10 +1,12 @@
 use std::collections::{HashMap, HashSet};
 
+use qdrant_client::qdrant::query::Variant as QueryVariant;
+use qdrant_client::qdrant::vector_input::Variant as VectorInputVariant;
 use qdrant_client::qdrant::vectors_config::Config;
 use qdrant_client::qdrant::{
-    CreateCollectionBuilder, Distance, NamedVectors, PointStruct, SearchPointsBuilder,
-    SparseVectorConfig, SparseVectorParamsBuilder, VectorParamsBuilder, VectorParamsMap,
-    VectorsConfig,
+    CreateCollectionBuilder, DenseVector, Distance, NamedVectors, PointStruct, Query,
+    QueryPointsBuilder, SparseVector, SparseVectorConfig, SparseVectorParamsBuilder, VectorInput,
+    VectorParamsBuilder, VectorParamsMap, VectorsConfig,
 };
 use qdrant_client::{Payload, Qdrant};
 use serde::{Deserialize, Serialize};
@@ -164,17 +166,29 @@ impl QdrantVectorStore {
         limit: u64,
     ) -> Result<Vec<SearchResult>, WorkerError> {
         let embedding = self.embeddings.embed_tfidf(query)?;
-        let (_indices, _values) = match &embedding {
+        let (indices, values) = match &embedding {
             EmbeddingVariant::Sparse(i, v) => (i, v),
             _ => return Ok(vec![]),
         };
 
-        let dense_fallback = vec![0.0_f32; 384];
+        let sparse_vector = SparseVector {
+            indices: indices.clone(),
+            values: values.clone(),
+        };
+        let vector_input = VectorInput {
+            variant: Some(VectorInputVariant::Sparse(sparse_vector)),
+        };
+        let query_variant = Query {
+            variant: Some(QueryVariant::Nearest(vector_input)),
+        };
+
         let results = self
             .client
-            .search_points(
-                SearchPointsBuilder::new(&self.collection_name, dense_fallback, limit)
-                    .vector_name("tfidf".to_string())
+            .query(
+                QueryPointsBuilder::new(&self.collection_name)
+                    .query(query_variant)
+                    .using("tfidf")
+                    .limit(limit)
                     .with_payload(true),
             )
             .await
@@ -183,10 +197,14 @@ impl QdrantVectorStore {
         Ok(results
             .result
             .into_iter()
-            .map(|p| SearchResult {
-                id: format!("{:?}", p.id),
-                text: extract_text(&p.payload),
-                score: p.score,
+            .filter_map(|p| {
+                p.id.and_then(|id| {
+                    Some(SearchResult {
+                        id: format!("{:?}", id),
+                        text: extract_text(&p.payload),
+                        score: p.score,
+                    })
+                })
             })
             .collect())
     }
@@ -202,11 +220,21 @@ impl QdrantVectorStore {
             _ => return Ok(vec![]),
         };
 
+        let dense_vector = DenseVector { data: vec };
+        let vector_input = VectorInput {
+            variant: Some(VectorInputVariant::Dense(dense_vector)),
+        };
+        let query_variant = Query {
+            variant: Some(QueryVariant::Nearest(vector_input)),
+        };
+
         let results = self
             .client
-            .search_points(
-                SearchPointsBuilder::new(&self.collection_name, vec, limit)
-                    .vector_name("lm".to_string())
+            .query(
+                QueryPointsBuilder::new(&self.collection_name)
+                    .query(query_variant)
+                    .using("lm")
+                    .limit(limit)
                     .with_payload(true),
             )
             .await
@@ -215,10 +243,14 @@ impl QdrantVectorStore {
         Ok(results
             .result
             .into_iter()
-            .map(|p| SearchResult {
-                id: format!("{:?}", p.id),
-                text: extract_text(&p.payload),
-                score: p.score,
+            .filter_map(|p| {
+                p.id.and_then(|id| {
+                    Some(SearchResult {
+                        id: format!("{:?}", id),
+                        text: extract_text(&p.payload),
+                        score: p.score,
+                    })
+                })
             })
             .collect())
     }

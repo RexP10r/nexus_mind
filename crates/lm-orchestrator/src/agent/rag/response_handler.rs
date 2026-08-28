@@ -19,6 +19,7 @@ impl ResponseHandler {
                 tracing::debug!(
                     thought = %llm_response.thought,
                     tool_name = %tool_name,
+                    tool_input = %tool_input,
                     "Agent decided to use tool"
                 );
                 tool_handler

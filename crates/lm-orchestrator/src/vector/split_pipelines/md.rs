@@ -336,11 +336,5 @@ where
     let mut path = vec![];
 
     flatten_and_chunk(&tree, &mut path, &mut chunks, &count_tokens);
-    println!("=== TREE STRUCTURE ===");
-    println!("{}", serde_json::to_string_pretty(&tree).unwrap());
-
-    println!("\n=== EMBEDDING CHUNKS ({} total) ===", chunks.len());
-    println!("{}", serde_json::to_string_pretty(&chunks).unwrap());
-
     chunks
 }

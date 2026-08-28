@@ -1,6 +1,3 @@
-[package]
-name = "nexus_mind"
-version = "0.1.0"
-edition = "2024"
-
-[dependencies]
+[workspace]
+members = ["crates/lm-orchestrator", "crates/tui"]
+resolver = "2"

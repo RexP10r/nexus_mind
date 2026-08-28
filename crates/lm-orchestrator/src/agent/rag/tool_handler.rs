@@ -63,7 +63,6 @@ impl<'a> ToolHandler<'a> {
 
         tracing::debug!(
             tool_name = %tool_name,
-            tool_input = %tool_input,
             observation = %observation,
             elapsed_ms,
             "Tool executed"

@@ -25,19 +25,16 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
             MessageRole::System => ("", Color::Yellow),
         };
 
-        // Split content by newlines and create separate lines
         let content_lines: Vec<String> = msg.content.split('\n').map(|s| s.to_string()).collect();
 
         for (i, content_line) in content_lines.iter().enumerate() {
             if i == 0 {
-                // First line gets the role prefix
                 let role_span =
                     Span::styled(prefix, Style::default().fg(color).add_modifier(Modifier::BOLD));
                 let content_span =
                     Span::styled(content_line.clone(), Style::default().fg(Color::White));
                 lines.push(Line::from(vec![role_span, content_span]));
             } else {
-                // Subsequent lines are indented continuation
                 let content_span =
                     Span::styled(content_line.clone(), Style::default().fg(Color::White));
                 lines.push(Line::from(content_span));
@@ -53,9 +50,6 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
     let max_scroll = total_lines.saturating_sub(visible_height);
     let scroll = max_scroll.saturating_sub(app.scroll_offset());
 
-    // Debug logging
-    eprintln!("DEBUG: total_lines={}, visible_height={}, max_scroll={}, scroll_offset={}, scroll={}", 
-        total_lines, visible_height, max_scroll, app.scroll_offset(), scroll);
 
     let paragraph = Paragraph::new(lines)
         .block(Block::bordered().title("Chat"))

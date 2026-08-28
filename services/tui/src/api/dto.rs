@@ -31,6 +31,8 @@ pub struct ChatResponse {
 #[derive(Debug, Serialize)]
 pub struct DocumentInput {
     pub text: String,
+    pub name: String,
+    pub file_format: String,
 }
 
 #[derive(Debug, Serialize)]

@@ -70,7 +70,6 @@ fn run_app(term: &mut terminal::TermionTerminal, config: Config) -> Result<(), T
 
         if let Some(event) = event_source.next_event(Duration::from_millis(100))? {
             let command = app.handle_event(event);
-            eprintln!("DEBUG: main loop - processed event, command={:?}", std::mem::discriminant(&command));
 
             match command {
                 Command::LoadPath(path, recursive) => {
@@ -140,8 +139,26 @@ fn command_dispatch_loop(
             Command::SendFiles(files) => {
                 let documents: Vec<crate::api::dto::DocumentInput> = files
                     .into_iter()
-                    .map(|f| crate::api::dto::DocumentInput {
-                        text: format!("File: {}\n\n{}", f.path.display(), f.content),
+                    .map(|f| {
+                    let name = f
+                        .path
+                        .file_name()
+                        .and_then(|os_str| os_str.to_str())
+                        .map(|s| s.to_string())
+                        .unwrap();
+
+                    let file_format = f
+                        .path
+                        .extension()
+                        .and_then(|os_str| os_str.to_str())
+                        .map(|s| s.to_string())
+                        .unwrap();
+
+                    crate::api::dto::DocumentInput {
+                        text: f.content,
+                        name,
+                        file_format,
+                    }
                     })
                     .collect();
 

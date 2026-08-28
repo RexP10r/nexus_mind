@@ -195,7 +195,6 @@ impl App {
             .into_iter()
             .map(|(role, content)| DisplayMessage { role, content })
             .collect::<Vec<_>>();
-        eprintln!("DEBUG: messages() - returning {} messages for display", messages.len());
         messages
     }
 
@@ -428,7 +427,6 @@ impl App {
     fn submit_input(&mut self) -> Command {
         let text = std::mem::take(&mut self.input);
         self.scroll_offset = 0;
-        eprintln!("DEBUG: submit_input() - scroll_offset set to 0, text='{}'", text);
 
         if text.starts_with('/') {
             return self.handle_command(text);
@@ -579,18 +577,15 @@ impl App {
                     MessageRole::Assistant,
                     resp.message.content,
                 );
-                eprintln!("DEBUG: handle_chat_response() - added assistant message, total messages now: {}", self.active_conversation().messages().len());
             }
             Err(e) => {
                 self.active_conversation_mut().add_message(
                     MessageRole::System,
                     format!("[Error: {}]", e),
                 );
-                eprintln!("DEBUG: handle_chat_response() - added error message");
             }
         }
         self.scroll_offset = 0;
-        eprintln!("DEBUG: handle_chat_response() - scroll_offset set to 0");
         Command::SaveConversations
     }
 

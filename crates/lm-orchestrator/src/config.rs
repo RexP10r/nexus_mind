@@ -14,12 +14,12 @@ pub enum AgentType {
 }
 
 #[derive(Parser, Clone, Debug)]
-#[command(name = "lm-worker")]
+#[command(name = "lm-orchestrator")]
 pub struct Config {
-    #[arg(env = "GRPC_ADDR", long)]
+    #[arg(env = "LM_SERVICE_GRPC_ADDR", long)]
     pub grpc_addr: String,
 
-    #[arg(env = "HTTP_PORT", long)]
+    #[arg(env = "LM_ORCHESTRATOR_HTTP_PORT", long)]
     pub http_port: u16,
 
     #[arg(env = "LOG_JSON", long)]
@@ -28,7 +28,7 @@ pub struct Config {
     #[arg(env = "MAX_ITERATIONS", long)]
     pub max_iterations: u32,
 
-    #[arg(env = "REQUEST_TIMEOUT", long)]
+    #[arg(env = "LM_SERVICE_REQUEST_TIMEOUT", long)]
     pub request_timeout: u64,
 
     #[arg(env = "PROVIDER_TYPE", long)]

@@ -16,7 +16,7 @@ class GRPCServer:
         add_servicer_fn(self._servicer, self._server)
 
     def start(self) -> None:
-        address = f"{self._settings.host}:{self._settings.port}"
+        address = self._settings.grpc_address
         self._server.add_insecure_port(address)
         self._server.start()
         print(f"gRPC server listening on {address}")

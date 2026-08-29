@@ -1,0 +1,34 @@
+services:
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 2s
+      retries: 3
+    network_mode: "host"
+
+  mongodb:
+    image: mongo:7
+    volumes:
+      - mongodb_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 2s
+      retries: 3
+    network_mode: "host"
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    volumes:
+      - ~/.config/nexus_mind/qdrant_storage:/qdrant/storage
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/6333'"]
+      interval: 10s
+      timeout: 2s
+      retries: 3
+    network_mode: "host"
+
+volumes:
+  mongodb_data:

@@ -11,7 +11,8 @@ done
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 META_DIR="$SCRIPT_DIR/.script_meta"
-LM_PID_FILE="$META_DIR/lm_service.pid"
+LM_SERVICE_PID_FILE="$META_DIR/lm_service.pid"
+LM_ORCHESTRATOR_PID_FILE="$META_DIR/lm_orchestrator.pid"
 
 if [[ -f "$SCRIPT_DIR/.env" ]]; then
     set -a
@@ -113,8 +114,8 @@ except Exception:
 # ── LM service ───────────────────────────────────────────────
 
 launch_lm_service() {
-	if load_pid "$LM_PID_FILE" >/dev/null 2>&1; then
-		log_info "LM service is already running (PID $(load_pid "$LM_PID_FILE"))"
+	if load_pid "$LM_SERVICE_PID_FILE" >/dev/null 2>&1; then
+		log_info "LM service is already running (PID $(load_pid "$LM_SERVICE_PID_FILE"))"
 		return 0
 	fi
 
@@ -123,7 +124,7 @@ launch_lm_service() {
 
 	uv run --directory crates/lm-service main.py > ./logs/lm_service.log 2>&1 &
 	local PID=$!
-	save_pid "$PID" "$LM_PID_FILE"
+	save_pid "$PID" "$LM_SERVICE_PID_FILE"
 
 	log_info "Check if lm service gRPC is available..."
 
@@ -139,7 +140,7 @@ launch_lm_service() {
 	else
 		echo ""
 		kill "$PID" 2>/dev/null
-		remove_pid "$LM_PID_FILE"
+		remove_pid "$LM_SERVICE_PID_FILE"
 		die "Invalid address format: $addr"
 	fi
 
@@ -152,7 +153,7 @@ launch_lm_service() {
 		if [[ "$i" -eq 30 ]]; then
 			echo ""
 			kill "$PID" 2>/dev/null
-			remove_pid "$LM_PID_FILE"
+			remove_pid "$LM_SERVICE_PID_FILE"
 			die "Lm service failed to start"
 		fi
 		printf "."
@@ -163,7 +164,7 @@ launch_lm_service() {
 
 stop_lm_service() {
 	local pid
-	if ! pid="$(load_pid "$LM_PID_FILE")"; then
+	if ! pid="$(load_pid "$LM_SERVICE_PID_FILE")"; then
 		log_warn "LM service is not running"
 		return 0
 	fi
@@ -182,21 +183,86 @@ stop_lm_service() {
 		kill -9 "$pid" 2>/dev/null
 	fi
 
-	remove_pid "$LM_PID_FILE"
+	remove_pid "$LM_SERVICE_PID_FILE"
 	log_success "Lm service stopped"
 }
+# ── Lm orchestrator  ────────────────────────────────────────────
 
-# ── Orchestration ────────────────────────────────────────────
+launch_lm_orchestrator() {
+	if load_pid "$LM_ORCHESTRATOR_PID_FILE" >/dev/null 2>&1; then
+		log_info "LM Orchestrator is already running (PID $(load_pid "$LM_ORCHESTRATOR_PID_FILE"))"
+		return 0
+	fi
+
+	mkdir -p logs
+	log_info "Launching lm orchestrator"
+	
+	cargo run -p lm-orchestrator > ./logs/lm_orchestrator.log 2>&1 &
+	local PID=$!
+	save_pid "$PID" "$LM_ORCHESTRATOR_PID_FILE"
+
+	log_info "Check if lm orchestrator HTTP is available..."
+	
+	local port="${LM_ORCHESTRATOR_HTTP_PORT}"
+	local host="127.0.0.1"
+
+	for i in {1..30}; do
+		if check_port "$host" "$port"; then
+			echo ""
+			log_success "Lm orchestrator is healthy"
+			return 0
+		fi
+		if [[ "$i" -eq 30 ]]; then
+			echo "" 
+			kill "$PID" 2>/dev/null
+			remove_pid "$LM_ORCHESTRATOR_PID_FILE"
+			die "Lm orchestrator failed to start"
+		fi
+		printf "."
+		sleep 1
+	done
+	echo ""
+}
+
+stop_lm_orchestrator() {
+	local pid
+	if ! pid="$(load_pid "$LM_ORCHESTRATOR_PID_FILE")"; then
+		log_warn "LM Orchestrator is not running"
+		return 0
+	fi
+
+	log_info "Stopping lm orchestrator (PID $pid)..."
+	kill "$pid" 2>/dev/null
+
+	local waited=0
+	while kill -0 "$pid" 2>/dev/null && [[ $waited -lt 10 ]]; do
+		sleep 1
+		((waited++))
+	done
+
+	if kill -0 "$pid" 2>/dev/null; then
+		log_warn "Process did not exit, sending SIGKILL"
+		kill -9 "$pid" 2>/dev/null
+	fi
+
+	remove_pid "$LM_ORCHESTRATOR_PID_FILE"
+	log_success "Lm orchestrator stopped"
+}
+
+
+# ── Routes  ────────────────────────────────────────────
 
 launch_project() {
 	launch_containers
 	launch_lm_service
+	launch_lm_orchestrator
 }
 
 stop_project() {
-	stop_lm_service
 	log_info "Stopping containers..."
 	docker compose down
+	stop_lm_service
+	stop_lm_orchestrator
 	log_success "All stopped"
 }
 

@@ -4,3 +4,4 @@ __pycache__/
 .env
 models/
 logs/
+.script_meta/

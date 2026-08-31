@@ -89,6 +89,7 @@ pub struct QdrantVectorStore {
     client: Qdrant,
     collection_name: String,
     embeddings: EmbeddingProviders,
+    search_limit: u64
 }
 
 const TFIDF_VOCAB_METADATA_KEY: &str = "tfidf_vocab";
@@ -110,11 +111,13 @@ impl QdrantVectorStore {
         client: Qdrant,
         collection_name: String,
         embeddings: EmbeddingProviders,
+        search_limit: u64,
     ) -> Result<Self, WorkerError> {
         let store = Self {
             client,
             collection_name,
             embeddings,
+            search_limit
         };
         Ok(store)
     }
@@ -163,7 +166,6 @@ impl QdrantVectorStore {
     pub async fn search_tfidf(
         &self,
         query: &str,
-        limit: u64,
     ) -> Result<Vec<SearchResult>, WorkerError> {
         let embedding = self.embeddings.embed_tfidf(query)?;
         let (indices, values) = match &embedding {
@@ -188,7 +190,7 @@ impl QdrantVectorStore {
                 QueryPointsBuilder::new(&self.collection_name)
                     .query(query_variant)
                     .using("tfidf")
-                    .limit(limit)
+                    .limit(self.search_limit)
                     .with_payload(true),
             )
             .await
@@ -212,7 +214,6 @@ impl QdrantVectorStore {
     pub async fn search_lm(
         &self,
         query: &str,
-        limit: u64,
     ) -> Result<Vec<SearchResult>, WorkerError> {
         let embedding = self.embeddings.embed_lm(query)?;
         let vec = match &embedding {
@@ -234,7 +235,7 @@ impl QdrantVectorStore {
                 QueryPointsBuilder::new(&self.collection_name)
                     .query(query_variant)
                     .using("lm")
-                    .limit(limit)
+                    .limit(self.search_limit)
                     .with_payload(true),
             )
             .await

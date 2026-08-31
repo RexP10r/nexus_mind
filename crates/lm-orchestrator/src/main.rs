@@ -121,7 +121,7 @@ async fn init_vector_store(config: &Config) -> Result<Arc<QdrantVectorStore>, Wo
     let embeddings = EmbeddingProviders::new(tfidf_provider, embedder_lm_provider);
 
     let store =
-        QdrantVectorStore::new(client, config.qdrant_collection_name.clone(), embeddings).await?;
+        QdrantVectorStore::new(client, config.qdrant_collection_name.clone(), embeddings, config.qdrant_search_limit).await?;
 
     tracing::info!("Vector store initialized");
 

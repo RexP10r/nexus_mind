@@ -31,7 +31,7 @@ impl AgentState {
     }
 
     pub fn record_parse_error(&mut self, raw: &str) {
-        let preview: String = raw.chars().take(200).collect();
+        let preview: String = raw.chars().collect();
         self.reasoning_steps.push(AgentStep {
             thought: format!(
                 "[PARSE ERROR] LLM response could not be parsed: {}",

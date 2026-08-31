@@ -9,12 +9,6 @@ use crate::vector::qdrant::QdrantVectorStore;
 #[derive(Deserialize)]
 struct SearchInput {
     query: String,
-    #[serde(default = "default_limit")]
-    limit: u64,
-}
-
-fn default_limit() -> u64 {
-    5
 }
 
 pub struct SearchLMTool {
@@ -34,7 +28,7 @@ impl Tool for SearchLMTool {
     }
 
     fn description(&self) -> &str {
-        "searches the knowledge base using LM (semantic understanding). input: JSON {\"query\": \"...\", \"limit\": 5}"
+        "searches the knowledge base using LM (semantic understanding). input: JSON {\"query\": \"...\"}"
     }
 
     async fn execute(&self, input: &str) -> String {
@@ -52,7 +46,7 @@ impl Tool for SearchLMTool {
             return "Empty query provided.".to_string();
         }
 
-        match self.store.search_lm(&parsed.query, parsed.limit).await {
+        match self.store.search_lm(&parsed.query).await {
             Ok(results) => {
                 if results.is_empty() {
                     return "No relevant documents found.".to_string();

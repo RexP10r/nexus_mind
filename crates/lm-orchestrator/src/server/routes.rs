@@ -245,7 +245,7 @@ pub async fn search_sparse(
         );
     }
 
-    match state.vector_store.search_tfidf(&req.query, req.limit).await {
+    match state.vector_store.search_tfidf(&req.query).await {
         Ok(results) => {
             tracing::info!(
                 query = %req.query,
@@ -284,7 +284,7 @@ pub async fn search_dense(
         );
     }
 
-    match state.vector_store.search_lm(&req.query, req.limit).await {
+    match state.vector_store.search_lm(&req.query).await {
         Ok(results) => {
             tracing::info!(
                 query = %req.query,

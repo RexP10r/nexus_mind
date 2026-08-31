@@ -10,7 +10,7 @@ impl Default for GenerationParams {
     fn default() -> Self {
         Self {
             temperature: 0.2,
-            max_tokens: 512,
+            max_tokens: 65536,
             top_p: 0.9,
             top_k: 32,
         }

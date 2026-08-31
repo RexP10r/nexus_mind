@@ -50,12 +50,6 @@ pub struct AddDocsResponse {
 #[derive(Debug, Deserialize)]
 pub struct SearchRequest {
     pub query: String,
-    #[serde(default = "default_search_limit")]
-    pub limit: u64,
-}
-
-fn default_search_limit() -> u64 {
-    5
 }
 
 #[derive(Debug, Serialize)]

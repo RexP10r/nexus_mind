@@ -58,6 +58,9 @@ pub struct Config {
     #[arg(env = "QDRANT_URL", long)]
     pub qdrant_url: String,
 
+    #[arg(env = "QDRANT_SEARCH_LIMIT", long)]
+    pub qdrant_search_limit: u64,
+
     #[arg(env = "QDRANT_COLLECTION_NAME", long)]
     pub qdrant_collection_name: String,
 

@@ -15,7 +15,7 @@ use crate::embeddings::provider::EmbeddingProviders;
 use crate::embeddings::sparse::VocabState;
 use crate::error::WorkerError;
 use crate::model::{Document, EmbeddingVariant, SearchResult};
-use crate::vector::splitter::DocSplitter;
+use crate::vector::splitter::split_doc;
 
 pub async fn get_collection_vocab(
     client: &Qdrant,
@@ -128,11 +128,10 @@ impl QdrantVectorStore {
         }
 
         let mut chunks: Vec<String> = Vec::new();
-        let splitter = DocSplitter::new();
 
         for doc in docs {
             chunks.extend(
-                match splitter.split(doc, &(|text| self.embeddings.lm.count_tokens(text))) {
+                match split_doc(doc, &(|text| self.embeddings.lm.count_tokens(text))) {
                     Some(new_chunks) => new_chunks,
                     None => {
                         return Err(WorkerError::Qdrant("Failed to split document".to_string()));

@@ -30,8 +30,7 @@ pub enum ConversationEntry {
     #[serde(rename = "step")]
     Step {
         thought: String,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        action: Option<AgentAction>,
+        action: AgentAction,
         #[serde(skip_serializing_if = "Option::is_none")]
         observation: Option<String>,
     },

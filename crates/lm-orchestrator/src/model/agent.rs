@@ -8,8 +8,7 @@ pub struct AgentStep {
     pub thought: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub observation: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub action: Option<AgentAction>,
+    pub action: AgentAction,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -37,10 +36,10 @@ pub fn reasoning_steps_to_chat(steps: &[AgentStep]) -> Vec<ChatMessage> {
     for step in steps {
         match (&step.action, &step.observation) {
             (
-                Some(AgentAction::ExecuteTool {
+                AgentAction::ExecuteTool {
                     tool_name,
                     tool_input,
-                }),
+                },
                 Some(obs),
             ) => {
                 out.push(ChatMessage {
@@ -55,7 +54,7 @@ pub fn reasoning_steps_to_chat(steps: &[AgentStep]) -> Vec<ChatMessage> {
                     content: format!("Observation: {}", obs),
                 });
             }
-            (Some(AgentAction::Finish { answer }), _) => {
+            (AgentAction::Finish { answer }, _) => {
                 out.push(ChatMessage {
                     role: ChatRole::Assistant,
                     content: answer.clone(),

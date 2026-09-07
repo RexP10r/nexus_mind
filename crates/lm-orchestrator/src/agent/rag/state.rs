@@ -41,7 +41,7 @@ impl AgentState {
         self.reasoning_steps.push(AgentStep {
             thought,
             observation: Some(observation),
-            action: Some(action),
+            action: action,
         });
     }
 }

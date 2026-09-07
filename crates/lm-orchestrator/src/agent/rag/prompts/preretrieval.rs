@@ -22,6 +22,31 @@ Every response MUST have a `intent` a 'information_gap' and an `action`. The act
 - `tool_name` + `tool_input` — call a tool to get information
 - `answer` — provide the FINAL answer to the user
 
+## Examples
+
+**Example 1: Tool call** (user needs information retrieval)
+```json
+{{
+  "intent": "factual lookup about project architecture",
+  "information_gap": "need to search knowledge base for architecture details",
+  "action": {{
+    "tool_name": "search_tfidf",
+    "tool_input": "project architecture components"
+  }}
+}}
+```
+
+**Example 2: Direct answer** (no retrieval needed)
+```json
+{{
+  "intent": "general greeting",
+  "information_gap": "none",
+  "action": {{
+    "answer": "Hello! How can I help you today?"
+  }}
+}}
+```
+
 ## Available Tools
 {}
 

@@ -1,7 +1,7 @@
-use crate::agent::rag::schema::{PreRetrievalResponse, generate_schema_text};
+use crate::agent::rag::schema::{PostRetrievalResponse, generate_schema_text};
 
 pub fn build_postretrieval_system_prompt(tool_descriptions: &str, summary: Option<&str>) -> String {
-    let schema_text = generate_schema_text::<PreRetrievalResponse>();
+    let schema_text = generate_schema_text::<PostRetrievalResponse>();
 
     let summary_block = match summary {
         Some(s) if !s.is_empty() => format!("\n## Conversation Summary\n{}\n", s),
@@ -23,6 +23,28 @@ Every response MUST have these fields:
  - 'self_questions'
  - 'self_answers'
  - 'final_answer'
+
+## Examples
+
+**Example 1: Context sufficient**
+```json
+{{
+  "context_evaluating": "The retrieved documents clearly describe the authentication flow using JWT tokens.",
+  "self_questions": "Am I only using information from the context? Did I miss any edge cases mentioned?",
+  "self_answers": "Yes, all information comes directly from the provided context. The context covers the main flow completely.",
+  "final_answer": "The system uses JWT-based authentication. Tokens are issued after successful login and validated on each request."
+}}
+```
+
+**Example 2: Context insufficient**
+```json
+{{
+  "context_evaluating": "The retrieved documents mention the database schema but do not cover the specific query optimization techniques requested.",
+  "self_questions": "Am I about to speculate beyond what the context provides?",
+  "self_answers": "The context does not contain information about query optimization strategies.",
+  "final_answer": "I don't have sufficient information in the knowledge base to answer your question about query optimization techniques."
+}}
+```
 
 ## Available Tools
 {}

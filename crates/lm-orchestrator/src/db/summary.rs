@@ -164,7 +164,7 @@ pub async fn generate_summary(
                 Ok(parsed.answer)
             } else {
                 tracing::warn!(
-                    summary_preview = %parsed.answer.chars().take(100).collect::<String>(),
+                    summary_preview = %parsed.answer,
                     "Summary validation failed: response appears to be a conversation echo, not a narrative summary"
                 );
                 Ok(parsed.answer)
@@ -172,7 +172,7 @@ pub async fn generate_summary(
         }
         Err(e) => {
             tracing::error!(
-                raw_preview = %raw_text.chars().take(200).collect::<String>(),
+                raw_preview = %raw_text,
                 parse_error = %e,
                 "Failed to parse summary JSON, using raw text"
             );

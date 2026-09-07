@@ -1,34 +1,36 @@
-use super::schema::AgentResponse;
 use super::state::AgentState;
 use super::tool_handler::ToolHandler;
-use crate::model::{AgentAction, AgentResult};
+use crate::{
+    model::{AgentAction, AgentResult},
+    traits::agent_response::AgentResponse,
+};
 
 pub(crate) struct ResponseHandler;
 
 impl ResponseHandler {
-    pub(crate) async fn handle(
+    pub(crate) async fn handle<T: AgentResponse>(
         state: &mut AgentState,
-        llm_response: AgentResponse,
+        llm_response: T,
         tool_handler: &ToolHandler<'_>,
     ) -> Option<AgentResult> {
-        match llm_response.action {
+        match llm_response.action() {
             AgentAction::ExecuteTool {
                 tool_name,
                 tool_input,
             } => {
                 tracing::debug!(
-                    thought = %llm_response.thought,
+                    thought = %llm_response.thought(),
                     tool_name = %tool_name,
                     tool_input = %tool_input,
                     "Agent decided to use tool"
                 );
                 tool_handler
-                    .execute_with_state(state, llm_response.thought, tool_name, tool_input)
+                    .execute_with_state(state, llm_response.thought(), tool_name, tool_input)
                     .await;
                 None
             }
             AgentAction::Finish { answer } => {
-                tracing::debug!(thought = %llm_response.thought, answer = %answer, "Agent reached final answer");
+                tracing::debug!(thought = %llm_response.thought(), answer = %answer, "Agent reached final answer");
                 state.add_final_answer(answer.clone());
                 Some(AgentResult {
                     final_answer: answer,

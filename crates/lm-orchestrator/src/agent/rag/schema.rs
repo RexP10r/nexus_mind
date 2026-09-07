@@ -1,16 +1,24 @@
 use schemars::JsonSchema;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
-use crate::model::AgentAction;
+use crate::{model::AgentAction, traits::agent_response::AgentResponse};
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct AgentResponse {
+pub struct ReActAgentResponse {
     pub thought: String,
     pub action: AgentAction,
 }
+impl AgentResponse  for ReActAgentResponse {
+    fn action(&self) -> AgentAction {
+        self.action.clone()
+    }
+    fn thought(&self) -> String {
+        self.thought.clone()
+    }
+}
 
-pub fn extract_llm_response(raw: &str) -> Result<AgentResponse, String> {
-    extract_json_response(raw)
+pub fn extract_llm_response<T: AgentResponse + DeserializeOwned>(raw: &str) -> Result<T, String> {
+    extract_json_response::<T>(raw)
 }
 
 pub fn extract_json_response<T: DeserializeOwned>(raw: &str) -> Result<T, String> {
@@ -26,10 +34,7 @@ pub fn extract_json_response<T: DeserializeOwned>(raw: &str) -> Result<T, String
         }
     }
 
-    Err(cleaned
-        .chars()
-        .take(200)
-        .collect::<String>())
+    Err(cleaned.chars().take(200).collect::<String>())
 }
 
 fn strip_markdown_fences(raw: &str) -> String {
@@ -44,13 +49,14 @@ fn strip_markdown_fences(raw: &str) -> String {
         .to_string()
 }
 
-static EXTRACTION_PATTERNS: &[(&str, &str)] = &[
-    ("```json\n", "\n```"),
-    ("```\n", "\n```"),
-    ("", ""),
-];
+static EXTRACTION_PATTERNS: &[(&str, &str)] =
+    &[("```json\n", "\n```"), ("```\n", "\n```"), ("", "")];
 
-fn extract_json_between<T: DeserializeOwned>(text: &str, prefix: &str, suffix: &str) -> Result<T, String> {
+fn extract_json_between<T: DeserializeOwned>(
+    text: &str,
+    prefix: &str,
+    suffix: &str,
+) -> Result<T, String> {
     if prefix.is_empty() && suffix.is_empty() {
         return serde_json::from_str(text).map_err(|e| e.to_string());
     }
@@ -61,8 +67,8 @@ fn extract_json_between<T: DeserializeOwned>(text: &str, prefix: &str, suffix: &
     serde_json::from_str(json_str.trim()).map_err(|e| e.to_string())
 }
 
-pub fn generate_schema_text() -> String {
-    let schema = schemars::schema_for!(AgentResponse);
+pub fn generate_schema_text<T: schemars::JsonSchema + AgentResponse>() -> String {
+    let schema = schemars::schema_for!(T);
     serde_json::to_string_pretty(&schema).unwrap_or_default()
 }
 
@@ -73,7 +79,7 @@ mod tests {
     #[test]
     fn test_extract_tool_call() {
         let raw = r#"{"thought": "I need to calculate", "action": {"tool_name": "calculate", "tool_input": "2+2"}}"#;
-        let resp = extract_llm_response(raw).unwrap();
+        let resp = extract_llm_response::<ReActAgentResponse>(raw).unwrap();
         assert_eq!(resp.thought, "I need to calculate");
         assert!(matches!(resp.action, AgentAction::ExecuteTool { .. }));
     }
@@ -81,7 +87,7 @@ mod tests {
     #[test]
     fn test_extract_finish() {
         let raw = r#"{"thought": "The answer is clear", "action": {"answer": "42"}}"#;
-        let resp = extract_llm_response(raw).unwrap();
+        let resp = extract_llm_response::<ReActAgentResponse>(raw).unwrap();
         assert_eq!(resp.thought, "The answer is clear");
         match resp.action {
             AgentAction::Finish { answer } => assert_eq!(answer, "42"),
@@ -92,7 +98,7 @@ mod tests {
     #[test]
     fn test_extract_with_markdown_fence() {
         let raw = "```json\n{\"thought\": \"done\", \"action\": {\"answer\": \"Paris\"}}\n```";
-        let resp = extract_llm_response(raw).unwrap();
+        let resp = extract_llm_response::<ReActAgentResponse>(raw).unwrap();
         match resp.action {
             AgentAction::Finish { answer } => assert_eq!(answer, "Paris"),
             _ => panic!("expected Finish"),
@@ -102,18 +108,18 @@ mod tests {
     #[test]
     fn test_extract_invalid() {
         let raw = "some random text without json";
-        assert!(extract_llm_response(raw).is_err());
+        assert!(extract_llm_response::<ReActAgentResponse>(raw).is_err());
     }
 
     #[test]
     fn test_extract_missing_action() {
         let raw = r#"{"thought": "just thinking"}"#;
-        assert!(extract_llm_response(raw).is_err());
+        assert!(extract_llm_response::<ReActAgentResponse>(raw).is_err());
     }
 
     #[test]
     fn test_schema_is_valid_json() {
-        let text = generate_schema_text();
+        let text = generate_schema_text::<ReActAgentResponse>();
         assert!(serde_json::from_str::<serde_json::Value>(&text).is_ok());
     }
 }

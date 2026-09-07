@@ -1,7 +1,9 @@
+use crate::agent::rag::schema::ReActAgentResponse;
+
 use super::schema::generate_schema_text;
 
 pub fn build_system_prompt(tool_descriptions: &str, summary: Option<&str>) -> String {
-    let schema_text = generate_schema_text();
+    let schema_text = generate_schema_text::<ReActAgentResponse>();
 
     let summary_block = match summary {
         Some(s) if !s.is_empty() => format!("\n## Conversation Summary\n{}\n", s),

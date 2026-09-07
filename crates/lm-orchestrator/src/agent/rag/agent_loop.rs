@@ -6,6 +6,7 @@ use super::response_handler::ResponseHandler;
 use super::schema::extract_llm_response;
 use super::state::AgentState;
 use super::tool_handler::ToolHandler;
+use crate::agent::rag::schema::ReActAgentResponse;
 use crate::error::WorkerError;
 use crate::model::{build_chat_context, AgentResult, GenerationParams};
 use crate::traits::llm::LlmProvider;
@@ -128,7 +129,7 @@ impl<'a> AgentLoop<'a> {
         state: &mut AgentState,
         text: &str,
     ) -> Option<AgentResult> {
-        match extract_llm_response(text) {
+        match extract_llm_response::<ReActAgentResponse>(text) {
             Ok(llm_response) => {
                 if let Some(result) =
                     ResponseHandler::handle(state, llm_response, &self.tool_handler).await

@@ -15,13 +15,13 @@ use crate::model::{AgentResult, GenerationParams, build_chat_context};
 use crate::traits::agent_response::AgentResponse;
 use crate::traits::llm::LlmProvider;
 
-pub(crate) struct AgentLoop<'a> {
+pub(crate) struct RAGAgentCascade<'a> {
     llm: Arc<dyn LlmProvider>,
     tool_handler: ToolHandler<'a>,
     request_timeout: Duration,
 }
 
-impl<'a> AgentLoop<'a> {
+impl<'a> RAGAgentCascade<'a> {
     pub(crate) fn new(
         llm: Arc<dyn LlmProvider>,
         tool_handler: ToolHandler<'a>,

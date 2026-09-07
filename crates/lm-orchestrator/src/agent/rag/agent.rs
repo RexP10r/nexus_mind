@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 
-use super::agent_loop::AgentLoop;
+use super::cascade::RAGAgentCascade;
 use super::state::AgentState;
 use super::tool_handler::ToolHandler;
 use crate::error::WorkerError;
@@ -47,7 +47,7 @@ impl Agent for RAGAgent {
         );
         let state = AgentState::new(messages);
         let tool_handler = ToolHandler::new(&self.tool_registry);
-        let agent_loop = AgentLoop::new(
+        let agent_loop = RAGAgentCascade::new(
             Arc::clone(&self.llm),
             tool_handler,
             self.request_timeout,

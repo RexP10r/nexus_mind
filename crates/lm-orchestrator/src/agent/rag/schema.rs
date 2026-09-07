@@ -5,15 +5,54 @@ use crate::{model::AgentAction, traits::agent_response::AgentResponse};
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct ReActAgentResponse {
-    pub thought: String,
-    pub action: AgentAction,
+    thought: String,
+    action: AgentAction,
 }
-impl AgentResponse  for ReActAgentResponse {
+impl AgentResponse for ReActAgentResponse {
     fn action(&self) -> AgentAction {
         self.action.clone()
     }
     fn thought(&self) -> String {
         self.thought.clone()
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct PreRetrievalResponse {
+    intent: String,
+    information_gap: String,
+    action: AgentAction,
+}
+impl AgentResponse for PreRetrievalResponse {
+    fn action(&self) -> AgentAction {
+        self.action.clone()
+    }
+    fn thought(&self) -> String {
+        format!(
+            "INTENT:\n{}\n\nINFORMATION GAP:\n{}",
+            self.intent, self.information_gap
+        )
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct PostRetrievalResponse {
+    context_evaluating: String,
+    self_questions: String,
+    self_answers: String,
+    final_answer: String,
+}
+impl AgentResponse for PostRetrievalResponse {
+    fn action(&self) -> AgentAction {
+        AgentAction::Finish {
+            answer: self.final_answer.clone(),
+        }
+    }
+    fn thought(&self) -> String {
+        format!(
+            "CONTEXT EVALUATING:\n{}\n\nSELF QUESTIONS:\n{}\n\nSELF ANSWERS:\n{}",
+            self.context_evaluating, self.self_questions, self.self_answers
+        )
     }
 }
 

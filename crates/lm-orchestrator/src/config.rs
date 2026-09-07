@@ -25,9 +25,6 @@ pub struct Config {
     #[arg(env = "LOG_JSON", long)]
     pub log_json: bool,
 
-    #[arg(env = "MAX_ITERATIONS", long)]
-    pub max_iterations: u32,
-
     #[arg(env = "LM_SERVICE_REQUEST_TIMEOUT", long)]
     pub request_timeout: u64,
 

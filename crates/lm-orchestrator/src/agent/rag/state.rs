@@ -30,18 +30,6 @@ impl AgentState {
         Ok(())
     }
 
-    pub fn record_parse_error(&mut self, raw: &str) {
-        let preview: String = raw.chars().collect();
-        self.reasoning_steps.push(AgentStep {
-            thought: format!(
-                "[PARSE ERROR] LLM response could not be parsed: {}",
-                preview
-            ),
-            action: None,
-            observation: None,
-        });
-    }
-
     pub fn add_final_answer(&mut self, answer: String) {
         self.conversation.push(Message {
             role: ChatRole::Assistant,

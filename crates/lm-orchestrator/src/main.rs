@@ -143,7 +143,6 @@ async fn init_agent(
             let tool_count = tool_registry.tool_count();
             tracing::info!(
                 agent_type = "rag",
-                max_iterations = config.max_iterations,
                 request_timeout = config.request_timeout,
                 tool_count,
                 "Initializing agent"
@@ -151,7 +150,6 @@ async fn init_agent(
             Arc::new(RAGAgent::new(
                 llm,
                 tool_registry,
-                config.max_iterations,
                 config.request_timeout,
             ))
         }

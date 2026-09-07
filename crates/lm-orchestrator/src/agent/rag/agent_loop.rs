@@ -1,14 +1,18 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use super::prompt::build_system_prompt;
+use serde::de::DeserializeOwned;
+
 use super::response_handler::ResponseHandler;
 use super::schema::extract_llm_response;
 use super::state::AgentState;
 use super::tool_handler::ToolHandler;
-use crate::agent::rag::schema::ReActAgentResponse;
+use crate::agent::rag::prompts::postretrieval::build_postretrieval_system_prompt;
+use crate::agent::rag::prompts::preretrieval::build_preretrieval_system_prompt;
+use crate::agent::rag::schema::{PostRetrievalResponse, PreRetrievalResponse};
 use crate::error::WorkerError;
-use crate::model::{build_chat_context, AgentResult, GenerationParams};
+use crate::model::{AgentResult, GenerationParams, build_chat_context};
+use crate::traits::agent_response::AgentResponse;
 use crate::traits::llm::LlmProvider;
 
 pub(crate) struct AgentLoop<'a> {
@@ -36,19 +40,32 @@ impl<'a> AgentLoop<'a> {
         params: &GenerationParams,
         summary: Option<&str>,
     ) -> Result<AgentResult, WorkerError> {
-        let system_prompt = build_system_prompt(&self.tool_handler.descriptions(), summary);
+        let preretrieval_sys_prompt =
+            build_preretrieval_system_prompt(&self.tool_handler.descriptions(), summary);
 
-        loop {
+        match self.run_step::<PreRetrievalResponse>(&mut state, &preretrieval_sys_prompt, params).await {
+            Ok(Some(agent_result)) => {return Ok(agent_result);},
+            Err(e) => {return Err(e)},
+            _ => {}
+        };
+        let postretrieval_sys_prompt =
+            build_postretrieval_system_prompt(&self.tool_handler.descriptions(), summary);
 
-
-            let response_text = self.call_llm(&mut state, &system_prompt, params).await?;
-
-            match self.process_llm_response(&mut state, &response_text).await {
-                Ok(Some(result)) => return Ok(result),
-                Err(e) => return Err(e),
-                _ => {}
-            }
+        match self.run_step::<PostRetrievalResponse>(&mut state, &postretrieval_sys_prompt, params).await {
+            Ok(Some(agent_result)) => Ok(agent_result),
+            Err(e) => Err(e),
+            _ => Err(WorkerError::Agent("Failed to process last retrieval step".to_string()))
         }
+    }
+
+    async fn run_step<T: AgentResponse+DeserializeOwned>(
+        &self,
+        state: &mut AgentState,
+        system_prompt: &str,
+        params: &GenerationParams,
+    ) -> Result<Option<AgentResult>, WorkerError> {
+        let response_text = self.call_llm(state, &system_prompt, params).await?;
+        self.process_llm_response::<T>(state, &response_text).await 
     }
 
     async fn call_llm(
@@ -57,7 +74,8 @@ impl<'a> AgentLoop<'a> {
         system_prompt: &str,
         params: &GenerationParams,
     ) -> Result<String, WorkerError> {
-        let chat_messages = build_chat_context(&state.conversation, &state.reasoning_steps, system_prompt);
+        let chat_messages =
+            build_chat_context(&state.conversation, &state.reasoning_steps, system_prompt);
 
         let llm_start = std::time::Instant::now();
 
@@ -93,12 +111,12 @@ impl<'a> AgentLoop<'a> {
         Ok(response.text)
     }
 
-    async fn process_llm_response(
+    async fn process_llm_response<T: AgentResponse + DeserializeOwned>(
         &self,
         state: &mut AgentState,
         text: &str,
     ) -> Result<Option<AgentResult>, WorkerError> {
-        match extract_llm_response::<ReActAgentResponse>(text) {
+        match extract_llm_response::<T>(text) {
             Ok(llm_response) => {
                 Ok(ResponseHandler::handle(state, llm_response, &self.tool_handler).await)
             }
@@ -107,7 +125,9 @@ impl<'a> AgentLoop<'a> {
                     raw_preview = %raw,
                     "Failed to parse LLM response as JSON"
                 );
-                Err(WorkerError::Agent("Failed to parse LLM response as JSON".to_string()))
+                Err(WorkerError::Agent(
+                    "Failed to parse LLM response as JSON".to_string(),
+                ))
             }
         }
     }

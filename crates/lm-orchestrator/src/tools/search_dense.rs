@@ -28,7 +28,7 @@ impl Tool for SearchLMTool {
     }
 
     fn description(&self) -> &str {
-        "searches the knowledge base using LM (semantic understanding). input: JSON {\"query\": \"...\"}"
+        "Searches the knowledge base using LM (semantic understanding). Must be used when some abstract info is requested input: JSON {\"query\": \"...\"}"
     }
 
     async fn execute(&self, input: &str) -> String {

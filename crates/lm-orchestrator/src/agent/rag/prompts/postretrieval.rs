@@ -59,9 +59,7 @@ Follow these concrete analytical steps and map them directly to the JSON schema 
 1. **Context Evaluation**: Briefly assess if the provided context is sufficient, relevant, and directly addresses the user's query.
 2. **Self-Verification**: Before writing the final answer, ask yourself 2-3 critical, skeptical questions about the facts you are about to present (e.g., "Am I assuming information not in the text?", "Did I confuse two similar entities mentioned in the context?"). Then, answer those questions using ONLY the provided context.
 3. **Action**: This is the terminal stage. You MUST set `action` to `"final_answer"`. Tool calls are strictly prohibited.
-4. **Final Answer**: Provide a comprehensive, accurate, and well-structured response based strictly on your verified analysis. If the context is insufficient, state that clearly.
-5. **Citations**: (Optional) List specific references or quotes from the context that support your final answer.
-
+4. **Final Answer**: Provide a comprehensive, accurate, and well-structured response based strictly on your verified analysis. If the context is insufficient, state that clearly. 
 "#,
         schema_text, summary_block, tool_descriptions
     )

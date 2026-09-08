@@ -28,7 +28,7 @@ impl Tool for SearchTfIdfTool {
     }
 
     fn description(&self) -> &str {
-        "searches the knowledge base using TF-IDF (keyword-based). input: JSON {\"query\": \"...\"}"
+        "Searches the knowledge base using TF-IDF (keyword-based). Must be used when specific termine or name requested. input: JSON {\"query\": \"...\"}"
     }
 
     async fn execute(&self, input: &str) -> String {

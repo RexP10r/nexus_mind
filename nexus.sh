@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 
 OPTION=""
+SERVICE=""
 while [[ $# -gt 0 ]]; do
 	case $1 in
 		--launch) OPTION="launch"; shift 1 ;;
 		--stop)   OPTION="stop";   shift 1 ;;
+		--reboot-all) OPTION="reboot_all"; shift 1;;
+		--reboot) OPTION="reboot_service"; SERVICE="$2"; shift 2;;
 		*) shift ;;
 	esac
 done
@@ -266,11 +269,23 @@ stop_project() {
 	log_success "All stopped"
 }
 
+reboot_service() {
+	log_info "Rebooting $SERVICE..."
+	case "$SERVICE" in
+		"containers") docker compose down; launch_containers ;;
+		"lm_service") stop_lm_service; launch_lm_service ;;
+		"lm_orchestrator") stop_lm_orchestrator; launch_lm_orchestrator ;;
+		*) die "Available services: containers, lm_service, lm_orchestrator" ;;
+	esac
+}
+
 main() {
 	case "$OPTION" in
 		"launch") launch_project ;;
 		"stop")   stop_project   ;;
-		*)        die "Usage: $0 --launch | --stop" ;;
+		"reboot_all") stop_project; launch_project ;;
+		"reboot_service") reboot_service ;;
+		*) die "Usage: $0 --launch | --stop | --reboot-all | --reboot [service]" ;;
 	esac
 }
 

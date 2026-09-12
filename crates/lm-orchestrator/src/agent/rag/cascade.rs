@@ -43,29 +43,39 @@ impl<'a> RAGAgentCascade<'a> {
         let preretrieval_sys_prompt =
             build_preretrieval_system_prompt(&self.tool_handler.descriptions(), summary);
 
-        match self.run_step::<PreRetrievalResponse>(&mut state, &preretrieval_sys_prompt, params).await {
-            Ok(Some(agent_result)) => {return Ok(agent_result);},
-            Err(e) => {return Err(e)},
+        match self
+            .run_step::<PreRetrievalResponse>(&mut state, &preretrieval_sys_prompt, params)
+            .await
+        {
+            Ok(Some(agent_result)) => {
+                return Ok(agent_result);
+            }
+            Err(e) => return Err(e),
             _ => {}
         };
         let postretrieval_sys_prompt =
             build_postretrieval_system_prompt(&self.tool_handler.descriptions(), summary);
 
-        match self.run_step::<PostRetrievalResponse>(&mut state, &postretrieval_sys_prompt, params).await {
+        match self
+            .run_step::<PostRetrievalResponse>(&mut state, &postretrieval_sys_prompt, params)
+            .await
+        {
             Ok(Some(agent_result)) => Ok(agent_result),
             Err(e) => Err(e),
-            _ => Err(WorkerError::Agent("Failed to process last retrieval step".to_string()))
+            _ => Err(WorkerError::Agent(
+                "Failed to process last retrieval step".to_string(),
+            )),
         }
     }
 
-    async fn run_step<T: AgentResponse+DeserializeOwned>(
+    async fn run_step<T: AgentResponse + DeserializeOwned>(
         &self,
         state: &mut AgentState,
         system_prompt: &str,
         params: &GenerationParams,
     ) -> Result<Option<AgentResult>, WorkerError> {
         let response_text = self.call_llm(state, &system_prompt, params).await?;
-        self.process_llm_response::<T>(state, &response_text).await 
+        self.process_llm_response::<T>(state, &response_text).await
     }
 
     async fn call_llm(

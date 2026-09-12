@@ -61,6 +61,9 @@ pub struct Config {
     #[arg(env = "QDRANT_COLLECTION_NAME", long)]
     pub qdrant_collection_name: String,
 
+    #[arg(env = "MAX_SPARSE_SIZE", long)]
+    pub max_sparse_size: u64,
+
     #[arg(env = "EMBEDDING_MODEL_PATH", long)]
     pub embedding_model_path: String,
 

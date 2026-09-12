@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, RwLock};
 
 use rust_stemmers::{Algorithm, Stemmer};
@@ -68,6 +68,50 @@ impl TfIdfProvider {
         let values: Vec<f32> = entries.iter().map(|(_, v)| *v).collect();
 
         Ok(EmbeddingVariant::Sparse(indices, values))
+    }
+    pub fn update_vocab(&self, doc_texts: &[String]) {
+        let vocab_arc = self.vocab();
+        let mut local_vocab = vocab_arc.write().unwrap();
+
+        let mut next_index = local_vocab
+            .term_to_index
+            .values()
+            .copied()
+            .max()
+            .map(|idx| idx.saturating_add(1))
+            .unwrap_or(0);
+
+        let mut processed_docs: u64 = 0;
+
+        for text in doc_texts {
+            let terms = crate::embeddings::sparse::tokenize(text);
+            if terms.is_empty() {
+                continue;
+            }
+
+            processed_docs = processed_docs.saturating_add(1);
+
+            let unique_terms: HashSet<&String> = terms.iter().collect();
+
+            for term in unique_terms {
+                let idx = if let Some(&idx) = local_vocab.term_to_index.get(term) {
+                    idx
+                } else {
+                    let idx = next_index;
+                    next_index = next_index.saturating_add(1);
+                    local_vocab.term_to_index.insert(term.clone(), idx);
+                    idx
+                };
+
+                if idx >= local_vocab.term_doc_count.len() {
+                    local_vocab.term_doc_count.resize(idx.saturating_add(1), 0);
+                }
+
+                local_vocab.term_doc_count[idx] = local_vocab.term_doc_count[idx].saturating_add(1);
+            }
+        }
+
+        local_vocab.total_docs = local_vocab.total_docs.saturating_add(processed_docs);
     }
 }
 

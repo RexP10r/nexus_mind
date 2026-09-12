@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use qdrant_client::qdrant::query::Variant as QueryVariant;
 use qdrant_client::qdrant::vector_input::Variant as VectorInputVariant;
@@ -89,7 +89,7 @@ pub struct QdrantVectorStore {
     client: Qdrant,
     collection_name: String,
     embeddings: EmbeddingProviders,
-    search_limit: u64
+    search_limit: u64,
 }
 
 const TFIDF_VOCAB_METADATA_KEY: &str = "tfidf_vocab";
@@ -117,7 +117,7 @@ impl QdrantVectorStore {
             client,
             collection_name,
             embeddings,
-            search_limit
+            search_limit,
         };
         Ok(store)
     }
@@ -162,10 +162,7 @@ impl QdrantVectorStore {
         Ok(docs.len() as u64)
     }
 
-    pub async fn search_tfidf(
-        &self,
-        query: &str,
-    ) -> Result<Vec<SearchResult>, WorkerError> {
+    pub async fn search_tfidf(&self, query: &str) -> Result<Vec<SearchResult>, WorkerError> {
         let embedding = self.embeddings.embed_tfidf(query)?;
         let (indices, values) = match &embedding {
             EmbeddingVariant::Sparse(i, v) => (i, v),
@@ -210,10 +207,7 @@ impl QdrantVectorStore {
             .collect())
     }
 
-    pub async fn search_lm(
-        &self,
-        query: &str,
-    ) -> Result<Vec<SearchResult>, WorkerError> {
+    pub async fn search_lm(&self, query: &str) -> Result<Vec<SearchResult>, WorkerError> {
         let embedding = self.embeddings.embed_lm(query)?;
         let vec = match &embedding {
             EmbeddingVariant::Dense(v) => v.clone(),
@@ -387,57 +381,13 @@ impl QdrantVectorStore {
         if let Some(persisted_vocab) = Self::vocab_from_metadata(&metadata)? {
             *self.embeddings.tfidf.vocab().write().unwrap() = persisted_vocab;
         }
+        self.embeddings.tfidf.update_vocab(doc_texts);
+        let updated_vocab = self.embeddings.tfidf.vocab().read().unwrap().clone();
+        //TODO
+        // self.embeddings.tfidf.update_vocab_with_docs(docs_texts)
+        //    inner call -> bound_vocab()
+        // updated_vocab = self.embeddings.tfidf.get_vocab()
 
-        let updated_vocab = {
-            let vocab_arc = self.embeddings.tfidf.vocab();
-            let mut local_vocab = vocab_arc.write().unwrap();
-
-            let mut next_index = local_vocab
-                .term_to_index
-                .values()
-                .copied()
-                .max()
-                .map(|idx| idx.saturating_add(1))
-                .unwrap_or(0);
-
-            let mut processed_docs: u64 = 0;
-
-            for text in doc_texts {
-                let terms = crate::embeddings::sparse::tokenize(text);
-                if terms.is_empty() {
-                    continue;
-                }
-
-                processed_docs = processed_docs.saturating_add(1);
-
-                let unique_terms: HashSet<&String> = terms.iter().collect();
-
-                for term in unique_terms {
-                    let idx = if let Some(&idx) = local_vocab.term_to_index.get(term) {
-                        idx
-                    } else {
-                        let idx = next_index;
-                        next_index = next_index.saturating_add(1);
-                        local_vocab.term_to_index.insert(term.clone(), idx);
-                        idx
-                    };
-
-                    if idx >= local_vocab.term_doc_count.len() {
-                        local_vocab.term_doc_count.resize(idx.saturating_add(1), 0);
-                    }
-
-                    local_vocab.term_doc_count[idx] =
-                        local_vocab.term_doc_count[idx].saturating_add(1);
-                }
-            }
-
-            local_vocab.total_docs = local_vocab.total_docs.saturating_add(processed_docs);
-
-            local_vocab.clone()
-        };
-
-        // Serialize updated vocab through QdrantMeta so the shape stays the same
-        // as during collection creation.
         let meta = QdrantMeta {
             tfidf_vocab: updated_vocab,
         };

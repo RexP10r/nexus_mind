@@ -27,12 +27,14 @@ impl Default for VocabState {
 
 pub struct TfIdfProvider {
     vocab: Arc<RwLock<VocabState>>,
+    max_vocab_size: u32,
 }
 
 impl TfIdfProvider {
-    pub fn new(vocab: VocabState) -> Self {
+    pub fn new(vocab: VocabState, max_vocab_size: u32) -> Self {
         Self {
             vocab: Arc::new(RwLock::new(vocab)),
+            max_vocab_size
         }
     }
 
@@ -112,6 +114,43 @@ impl TfIdfProvider {
         }
 
         local_vocab.total_docs = local_vocab.total_docs.saturating_add(processed_docs);
+        self.prune_vocab();
+    }
+    fn prune_vocab(&self) {
+        let mut vocab = self.vocab.write().unwrap();
+        let target_size = self.max_vocab_size as usize;
+        if vocab.term_to_index.len() <= target_size {
+            return;
+        }
+
+        let mut indexed_counts: Vec<(usize, u64)> = vocab
+            .term_doc_count
+            .iter()
+            .copied()
+            .enumerate()
+            .collect();
+        
+        indexed_counts.sort_unstable_by(|a, b| b.1.cmp(&a.1));
+
+        let keep_count = target_size.min(indexed_counts.len());
+        let kept_old_indices: std::collections::HashSet<usize> = indexed_counts[..keep_count]
+            .iter()
+            .map(|(i, _)| *i)
+            .collect();
+
+        let mut new_term_to_index = std::collections::HashMap::with_capacity(keep_count);
+        let mut new_term_doc_count = Vec::with_capacity(keep_count);
+
+        for (term, &old_index) in &vocab.term_to_index {
+            if kept_old_indices.contains(&old_index) {
+                let new_index = new_term_to_index.len();
+                new_term_to_index.insert(term.clone(), new_index);
+                new_term_doc_count.push(vocab.term_doc_count[old_index]);
+            }
+        }
+
+        vocab.term_to_index = new_term_to_index;
+        vocab.term_doc_count = new_term_doc_count;
     }
 }
 
@@ -142,7 +181,7 @@ mod tests {
         state.term_doc_count = vec![5, 3];
         state.total_docs = 10;
 
-        let provider = TfIdfProvider::new(state);
+        let provider = TfIdfProvider::new(state, 10);
         let result = provider.embed("hello world").unwrap();
         match result {
             EmbeddingVariant::Sparse(indices, values) => {

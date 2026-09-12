@@ -106,7 +106,7 @@ async fn init_vector_store(config: &Config) -> Result<Arc<QdrantVectorStore>, Wo
             total_docs = vocab.total_docs,
             "Loaded TF-IDF vocabulary from Qdrant"
         );
-        TfIdfProvider::new(vocab)
+        TfIdfProvider::new(vocab, config.max_sparse_size)
     };
 
     let embedder_lm_provider = {

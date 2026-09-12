@@ -13,6 +13,8 @@ pub struct VocabState {
     pub term_to_index: HashMap<String, usize>,
     pub term_doc_count: Vec<u64>,
     pub total_docs: u64,
+    #[serde(default)]
+    pub pruned_counts: HashMap<String, u64>,
 }
 
 impl Default for VocabState {
@@ -21,6 +23,7 @@ impl Default for VocabState {
             term_to_index: HashMap::new(),
             term_doc_count: Vec::new(),
             total_docs: 0,
+            pruned_counts: HashMap::new(),
         }
     }
 }
@@ -72,48 +75,55 @@ impl TfIdfProvider {
         Ok(EmbeddingVariant::Sparse(indices, values))
     }
     pub fn update_vocab(&self, doc_texts: &[String]) {
-        let vocab_arc = self.vocab();
-        let mut local_vocab = vocab_arc.write().unwrap();
+        {
+            let vocab_arc = self.vocab();
+            let mut local_vocab = vocab_arc.write().unwrap();
 
-        let mut next_index = local_vocab
-            .term_to_index
-            .values()
-            .copied()
-            .max()
-            .map(|idx| idx.saturating_add(1))
-            .unwrap_or(0);
+            let mut next_index = local_vocab
+                .term_to_index
+                .values()
+                .copied()
+                .max()
+                .map(|idx| idx.saturating_add(1))
+                .unwrap_or(0);
 
-        let mut processed_docs: u64 = 0;
+            let mut processed_docs: u64 = 0;
 
-        for text in doc_texts {
-            let terms = crate::embeddings::sparse::tokenize(text);
-            if terms.is_empty() {
-                continue;
-            }
-
-            processed_docs = processed_docs.saturating_add(1);
-
-            let unique_terms: HashSet<&String> = terms.iter().collect();
-
-            for term in unique_terms {
-                let idx = if let Some(&idx) = local_vocab.term_to_index.get(term) {
-                    idx
-                } else {
-                    let idx = next_index;
-                    next_index = next_index.saturating_add(1);
-                    local_vocab.term_to_index.insert(term.clone(), idx);
-                    idx
-                };
-
-                if idx >= local_vocab.term_doc_count.len() {
-                    local_vocab.term_doc_count.resize(idx.saturating_add(1), 0);
+            for text in doc_texts {
+                let terms = crate::embeddings::sparse::tokenize(text);
+                if terms.is_empty() {
+                    continue;
                 }
 
-                local_vocab.term_doc_count[idx] = local_vocab.term_doc_count[idx].saturating_add(1);
-            }
-        }
+                processed_docs = processed_docs.saturating_add(1);
 
-        local_vocab.total_docs = local_vocab.total_docs.saturating_add(processed_docs);
+                let unique_terms: HashSet<&String> = terms.iter().collect();
+
+                for term in unique_terms {
+                    let idx = if let Some(&idx) = local_vocab.term_to_index.get(term) {
+                        idx
+                    } else {
+                        let idx = next_index;
+                        next_index = next_index.saturating_add(1);
+                        let initial_count = local_vocab.pruned_counts.remove(term).unwrap_or(0);
+                        local_vocab.term_to_index.insert(term.clone(), idx);
+                        if idx >= local_vocab.term_doc_count.len() {
+                            local_vocab.term_doc_count.resize(idx.saturating_add(1), 0);
+                        }
+                        local_vocab.term_doc_count[idx] = initial_count;
+                        idx
+                    };
+
+                    if idx >= local_vocab.term_doc_count.len() {
+                        local_vocab.term_doc_count.resize(idx.saturating_add(1), 0);
+                    }
+
+                    local_vocab.term_doc_count[idx] = local_vocab.term_doc_count[idx].saturating_add(1);
+                }
+            }
+
+            local_vocab.total_docs = local_vocab.total_docs.saturating_add(processed_docs);
+        }
         self.prune_vocab();
     }
     fn prune_vocab(&self) {
@@ -137,16 +147,39 @@ impl TfIdfProvider {
             .iter()
             .map(|(i, _)| *i)
             .collect();
+        let evicted_old_indices: std::collections::HashSet<usize> = indexed_counts[keep_count..]
+            .iter()
+            .map(|(i, _)| *i)
+            .collect();
 
         let mut new_term_to_index = std::collections::HashMap::with_capacity(keep_count);
         let mut new_term_doc_count = Vec::with_capacity(keep_count);
+        let mut evicted_terms: Vec<(String, u64)> = Vec::new();
 
         for (term, &old_index) in &vocab.term_to_index {
             if kept_old_indices.contains(&old_index) {
                 let new_index = new_term_to_index.len();
                 new_term_to_index.insert(term.clone(), new_index);
                 new_term_doc_count.push(vocab.term_doc_count[old_index]);
+            } else if evicted_old_indices.contains(&old_index) {
+                let count = vocab.term_doc_count[old_index];
+                if count > 0 {
+                    evicted_terms.push((term.clone(), count));
+                }
             }
+        }
+
+        for (term, count) in evicted_terms {
+            let entry = vocab.pruned_counts.entry(term).or_insert(0);
+            *entry = (*entry).max(count);
+        }
+
+        let shadow_cap = target_size.saturating_mul(10);
+        if vocab.pruned_counts.len() > shadow_cap {
+            let mut counts_vec: Vec<(String, u64)> = vocab.pruned_counts.drain().collect();
+            counts_vec.sort_unstable_by_key(|(_, count)| std::cmp::Reverse(*count));
+            counts_vec.truncate(shadow_cap);
+            vocab.pruned_counts = counts_vec.into_iter().collect();
         }
 
         vocab.term_to_index = new_term_to_index;
@@ -192,6 +225,78 @@ mod tests {
                 assert!(values[1] > 0.0);
             }
             _ => panic!("expected sparse"),
+        }
+    }
+
+    #[test]
+    fn test_pruned_term_accumulates_across_batches() {
+        let state = VocabState::default();
+        let provider = TfIdfProvider::new(state, 3);
+
+        let batch_a = vec!["alpha beta gamma".to_string()];
+        let batch_b = vec!["alpha beta gamma".to_string()];
+        let batch_c = vec!["alpha beta gamma".to_string()];
+        let batch_new = vec!["delta".to_string()];
+
+        provider.update_vocab(&batch_a);
+        provider.update_vocab(&batch_b);
+        provider.update_vocab(&batch_c);
+
+        {
+            let vocab = provider.vocab.read().unwrap();
+            assert!(vocab.term_to_index.contains_key("alpha"));
+            assert!(vocab.term_to_index.contains_key("beta"));
+            assert!(vocab.term_to_index.contains_key("gamma"));
+        }
+
+        provider.update_vocab(&batch_new);
+
+        {
+            let vocab = provider.vocab.read().unwrap();
+            assert!(vocab.pruned_counts.contains_key("delta"));
+            assert_eq!(vocab.pruned_counts["delta"], 1);
+        }
+
+        for _ in 0..5 {
+            provider.update_vocab(&batch_new);
+        }
+
+        {
+            let vocab = provider.vocab.read().unwrap();
+            let shadow_delta = vocab.pruned_counts.get("delta").copied().unwrap_or(0);
+            let active_delta = vocab
+                .term_to_index
+                .get("delta")
+                .and_then(|&idx| vocab.term_doc_count.get(idx).copied())
+                .unwrap_or(0);
+            let total = shadow_delta + active_delta;
+            assert!(
+                total >= 5,
+                "delta should have accumulated df >= 5 across batches, got {total}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_pruned_counts_restored_on_reentry() {
+        let state = VocabState::default();
+        let provider = TfIdfProvider::new(state, 2);
+
+        provider.update_vocab(&vec!["alpha beta".to_string()]);
+        provider.update_vocab(&vec!["gamma".to_string()]);
+
+        {
+            let vocab = provider.vocab.read().unwrap();
+            assert!(vocab.pruned_counts.contains_key("gamma"));
+        }
+
+        provider.update_vocab(&vec!["gamma".to_string()]);
+
+        {
+            let vocab = provider.vocab.read().unwrap();
+            if let Some(&idx) = vocab.term_to_index.get("gamma") {
+                assert!(vocab.term_doc_count[idx] >= 2);
+            }
         }
     }
 }

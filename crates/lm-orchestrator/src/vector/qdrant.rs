@@ -383,10 +383,6 @@ impl QdrantVectorStore {
         }
         self.embeddings.tfidf.update_vocab(doc_texts);
         let updated_vocab = self.embeddings.tfidf.vocab().read().unwrap().clone();
-        //TODO
-        // self.embeddings.tfidf.update_vocab_with_docs(docs_texts)
-        //    inner call -> bound_vocab()
-        // updated_vocab = self.embeddings.tfidf.get_vocab()
 
         let meta = QdrantMeta {
             tfidf_vocab: updated_vocab,

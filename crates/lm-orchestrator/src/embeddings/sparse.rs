@@ -37,7 +37,7 @@ impl TfIdfProvider {
     pub fn new(vocab: VocabState, max_vocab_size: u32) -> Self {
         Self {
             vocab: Arc::new(RwLock::new(vocab)),
-            max_vocab_size
+            max_vocab_size,
         }
     }
 
@@ -75,55 +75,53 @@ impl TfIdfProvider {
         Ok(EmbeddingVariant::Sparse(indices, values))
     }
     pub fn update_vocab(&self, doc_texts: &[String]) {
-        {
-            let vocab_arc = self.vocab();
-            let mut local_vocab = vocab_arc.write().unwrap();
+        let vocab_arc = self.vocab();
+        let mut local_vocab = vocab_arc.write().unwrap();
 
-            let mut next_index = local_vocab
-                .term_to_index
-                .values()
-                .copied()
-                .max()
-                .map(|idx| idx.saturating_add(1))
-                .unwrap_or(0);
+        let mut next_index = local_vocab
+            .term_to_index
+            .values()
+            .copied()
+            .max()
+            .map(|idx| idx.saturating_add(1))
+            .unwrap_or(0);
 
-            let mut processed_docs: u64 = 0;
+        let mut processed_docs: u64 = 0;
 
-            for text in doc_texts {
-                let terms = crate::embeddings::sparse::tokenize(text);
-                if terms.is_empty() {
-                    continue;
-                }
+        for text in doc_texts {
+            let terms = crate::embeddings::sparse::tokenize(text);
+            if terms.is_empty() {
+                continue;
+            }
 
-                processed_docs = processed_docs.saturating_add(1);
+            processed_docs = processed_docs.saturating_add(1);
 
-                let unique_terms: HashSet<&String> = terms.iter().collect();
+            let unique_terms: HashSet<&String> = terms.iter().collect();
 
-                for term in unique_terms {
-                    let idx = if let Some(&idx) = local_vocab.term_to_index.get(term) {
-                        idx
-                    } else {
-                        let idx = next_index;
-                        next_index = next_index.saturating_add(1);
-                        let initial_count = local_vocab.pruned_counts.remove(term).unwrap_or(0);
-                        local_vocab.term_to_index.insert(term.clone(), idx);
-                        if idx >= local_vocab.term_doc_count.len() {
-                            local_vocab.term_doc_count.resize(idx.saturating_add(1), 0);
-                        }
-                        local_vocab.term_doc_count[idx] = initial_count;
-                        idx
-                    };
-
+            for term in unique_terms {
+                let idx = if let Some(&idx) = local_vocab.term_to_index.get(term) {
+                    idx
+                } else {
+                    let idx = next_index;
+                    next_index = next_index.saturating_add(1);
+                    let initial_count = local_vocab.pruned_counts.remove(term).unwrap_or(0);
+                    local_vocab.term_to_index.insert(term.clone(), idx);
                     if idx >= local_vocab.term_doc_count.len() {
                         local_vocab.term_doc_count.resize(idx.saturating_add(1), 0);
                     }
+                    local_vocab.term_doc_count[idx] = initial_count;
+                    idx
+                };
 
-                    local_vocab.term_doc_count[idx] = local_vocab.term_doc_count[idx].saturating_add(1);
+                if idx >= local_vocab.term_doc_count.len() {
+                    local_vocab.term_doc_count.resize(idx.saturating_add(1), 0);
                 }
-            }
 
-            local_vocab.total_docs = local_vocab.total_docs.saturating_add(processed_docs);
+                local_vocab.term_doc_count[idx] = local_vocab.term_doc_count[idx].saturating_add(1);
+            }
         }
+
+        local_vocab.total_docs = local_vocab.total_docs.saturating_add(processed_docs);
         self.prune_vocab();
     }
     fn prune_vocab(&self) {
@@ -133,13 +131,9 @@ impl TfIdfProvider {
             return;
         }
 
-        let mut indexed_counts: Vec<(usize, u64)> = vocab
-            .term_doc_count
-            .iter()
-            .copied()
-            .enumerate()
-            .collect();
-        
+        let mut indexed_counts: Vec<(usize, u64)> =
+            vocab.term_doc_count.iter().copied().enumerate().collect();
+
         indexed_counts.sort_unstable_by(|a, b| b.1.cmp(&a.1));
 
         let keep_count = target_size.min(indexed_counts.len());
